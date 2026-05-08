@@ -6,6 +6,10 @@ const tsgoPath = fileURLToPath(new URL(`../../node_modules/.bin/tsgo`, import.me
 
 const config: ReturnType<typeof defineConfig> = defineConfig({
   pack: {
+    entry: {
+      index: `src/index.ts`,
+      test: `src/test.ts`,
+    },
     dts: {
       tsgo: {
         path: tsgoPath,
@@ -18,6 +22,9 @@ const config: ReturnType<typeof defineConfig> = defineConfig({
       typeAware: true,
       typeCheck: true,
     },
+  },
+  test: {
+    setupFiles: [`./__tests__/setup.ts`],
   },
   fmt: {},
 });

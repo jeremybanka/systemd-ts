@@ -14,6 +14,7 @@ import {
   suggestedTimerFilename,
   timerActivates,
 } from "../src/index.ts";
+import { useCurrentTestSandbox } from "../src/testing/sandbox.ts";
 
 describe(`systemd-ts`, () => {
   test(`renders a service unit`, () => {
@@ -71,32 +72,37 @@ describe(`systemd-ts`, () => {
 
   describe(`sandbox integration stories`, () => {
     test(`installs a user service and timer into an isolated systemd sandbox`, () => {
+      const sandbox = useCurrentTestSandbox();
       logPendingStory(
-        `install() should write unit files into the sandboxed user unit directory, reload systemd, and return the installed paths`,
+        `install() should write unit files into ${sandbox.linkedUnitDir}, reload systemd, and return the installed paths`,
       );
 
       expect(typeof install).toBe(`function`);
+      expect(sandbox.namePrefix).toContain(`systemd-ts-`);
     });
 
     test(`enables a timer so it is wanted by timers.target in the sandbox`, () => {
+      const sandbox = useCurrentTestSandbox();
       logPendingStory(
-        `enable() should create the expected systemd wants-linkage and report that the timer is enabled`,
+        `enable() should create the expected systemd wants-linkage for ${sandbox.namePrefix}*.timer and report that the timer is enabled`,
       );
 
       expect(typeof enable).toBe(`function`);
     });
 
     test(`starts a oneshot service and observes successful completion`, () => {
+      const sandbox = useCurrentTestSandbox();
       logPendingStory(
-        `start() should run the service in the sandbox, wait for completion, and expose the final systemd state`,
+        `start() should run the service from ${sandbox.workDir}, wait for completion, and expose the final systemd state`,
       );
 
       expect(typeof start).toBe(`function`);
     });
 
     test(`reads recent journald output for a managed unit`, () => {
+      const sandbox = useCurrentTestSandbox();
       logPendingStory(
-        `logs() should return recent journal lines for the unit and preserve enough structure for assertions`,
+        `logs() should return recent journal lines for ${sandbox.namePrefix}*.service and preserve enough structure for assertions`,
       );
 
       expect(typeof logs).toBe(`function`);

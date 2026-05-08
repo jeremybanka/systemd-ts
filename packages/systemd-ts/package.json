@@ -9,6 +9,7 @@
   "type": "module",
   "exports": {
     ".": "./dist/index.mjs",
+    "./test": "./dist/test.mjs",
     "./package.json": "./package.json"
   },
   "publishConfig": {
