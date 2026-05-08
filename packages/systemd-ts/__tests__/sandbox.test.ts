@@ -373,8 +373,10 @@ async function startNotifyCapture(socketPath: string, outputPath: string): Promi
   ].join(`\n`);
 
   await runGuestCommand(
-    `rm -f ${shellQuote(socketPath)} ${shellQuote(outputPath)}
-nohup python3 -c ${shellQuote(python)} ${shellQuote(socketPath)} ${shellQuote(outputPath)} >/dev/null 2>&1 &`,
+    [
+      `rm -f ${shellQuote(socketPath)} ${shellQuote(outputPath)}`,
+      `nohup python3 -c ${shellQuote(python)} ${shellQuote(socketPath)} ${shellQuote(outputPath)} >/dev/null 2>&1 &`,
+    ].join(`\n`),
   );
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
