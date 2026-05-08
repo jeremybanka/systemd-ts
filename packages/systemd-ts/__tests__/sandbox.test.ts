@@ -3,16 +3,7 @@ import { readFile } from "node:fs/promises";
 import { Logger, type Chronicle } from "takua";
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import {
-  defineService,
-  defineTimer,
-  enable,
-  install,
-  logs,
-  notify,
-  start,
-  suggestedTimerFilename,
-} from "../src/index.ts";
+import { Systemd, SystemdService, SystemdTimer, notify, type CommandResult } from "../src/index.ts";
 import { ensureTestHost, runGuestCommand } from "../src/testing/host.ts";
 import {
   createTestSandbox,
@@ -34,7 +25,7 @@ beforeEach(async (context) => {
 
   await createTestSandbox(context.task.name);
 
-  chronicle?.mark(`beforeEach:sandbox-ready`);
+  chronicle.mark(`beforeEach:sandbox-ready`);
 });
 
 afterEach(async () => {
@@ -50,8 +41,11 @@ afterEach(async () => {
 describe(`systemd-ts sandbox`, () => {
   test(installTestName, async () => {
     const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
     chronicle?.mark(`test:start`);
-    const service = defineService({
+
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
       unit: {
         Description: `Write a marker file`,
       },
@@ -63,11 +57,12 @@ describe(`systemd-ts sandbox`, () => {
         WantedBy: `default.target`,
       },
     });
-    const timer = defineTimer({
+    const timer = new SystemdTimer({
+      name: sandbox.namePrefix,
       timer: {
         OnCalendar: `hourly`,
         Persistent: true,
-        Unit: `${sandbox.namePrefix}.service`,
+        Unit: service.filename,
       },
       install: {
         WantedBy: `timers.target`,
@@ -75,27 +70,22 @@ describe(`systemd-ts sandbox`, () => {
     });
     chronicle?.mark(`test:definitions-ready`);
 
-    const result = await install({
-      directory: sandbox.linkedUnitDir,
-      name: sandbox.namePrefix,
-      service,
-      timer,
-    });
+    const result = await systemd.install(service, timer);
     chronicle?.mark(`test:install-finished`);
 
     expect(result.directory).toBe(sandbox.linkedUnitDir);
-    expect(result.servicePath).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.service`);
-    expect(result.timerPath).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.timer`);
+    expect(result.pathFor(service)).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.service`);
+    expect(result.pathFor(timer)).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.timer`);
     expect(sandbox.namePrefix).toContain(`systemd-ts-`);
 
     const guestFiles = await runGuestCommand(
-      `test -f '${result.servicePath}' && test -f '${result.timerPath}' && echo ok`,
+      `test -f '${result.pathFor(service)}' && test -f '${result.pathFor(timer)}' && echo ok`,
     );
     chronicle?.mark(`test:guest-path-check-finished`);
     expect(guestFiles).toContain(`ok`);
 
-    const installedService = await readFile(result.servicePath!, `utf8`);
-    const installedTimer = await readFile(result.timerPath!, `utf8`);
+    const installedService = await readFile(result.pathFor(service), `utf8`);
+    const installedTimer = await readFile(result.pathFor(timer), `utf8`);
     chronicle?.mark(`test:host-read-finished`);
 
     expect(installedService).toContain(`[Service]`);
@@ -109,8 +99,9 @@ describe(`systemd-ts sandbox`, () => {
 
   test(`enables a timer so it is wanted by timers.target in the sandbox`, async () => {
     const sandbox = useCurrentTestSandbox();
-    const timerUnit = suggestedTimerFilename(sandbox.namePrefix);
-    const timer = defineTimer({
+    const systemd = sandboxSystemd();
+    const timer = new SystemdTimer({
+      name: sandbox.namePrefix,
       unit: {
         Description: `Enable me`,
       },
@@ -124,52 +115,50 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    const result = await install({
-      directory: sandbox.linkedUnitDir,
-      name: sandbox.namePrefix,
-      timer,
-    });
-    expect(result.timerPath).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.timer`);
-
-    const enabled = await enable({
-      executor: guestCommandExecutor,
-      path: result.timerPath!,
-      scope: `user`,
-      unit: timerUnit,
-    });
-
-    expect(enabled.unit).toBe(timerUnit);
-    expect(enabled.linkedPath).toBe(result.timerPath);
+    await systemd.install(timer);
+    await systemd.enable(timer);
 
     const systemdStatus = await runGuestCommand(
-      `systemctl --user is-enabled ${shellQuote(timerUnit)}`,
+      `systemctl --user is-enabled ${shellQuote(timer.filename)}`,
     );
     expect(systemdStatus).toContain(`enabled`);
 
     const wantsLink = await runGuestCommand(
-      `readlink -f "$HOME/.config/systemd/user/timers.target.wants/${timerUnit}"`,
+      `readlink -f "$HOME/.config/systemd/user/timers.target.wants/${timer.filename}"`,
     );
-    expect(wantsLink.trim()).toBe(result.timerPath);
-
-    expect(typeof enable).toBe(`function`);
+    expect(wantsLink.trim()).toBe(systemd.pathFor(timer));
   });
 
   test(`starts a oneshot service and observes successful completion`, () => {
     const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
     logPendingStory(
-      `start() should run the service from ${sandbox.workDir}, wait for completion, and expose the final systemd state`,
+      `Systemd.start() should run ${service.filename} from ${sandbox.workDir}, wait for completion, and expose the final systemd state`,
     );
 
-    expect(typeof start).toBe(`function`);
+    expect(typeof systemd.start).toBe(`function`);
   });
 
   test(`reads recent journald output for a managed unit`, () => {
     const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
     logPendingStory(
-      `logs() should return recent journal lines for ${sandbox.namePrefix}*.service and preserve enough structure for assertions`,
+      `Systemd.logs() should return recent journal lines for ${service.filename} and preserve enough structure for assertions`,
     );
 
-    expect(typeof logs).toBe(`function`);
+    expect(typeof systemd.logs).toBe(`function`);
   });
 
   test(`signals READY=1 from a notify service process`, () => {
@@ -189,15 +178,28 @@ describe(`systemd-ts sandbox`, () => {
   });
 
   test(`installs, enables, and runs a timer-driven service end to end`, () => {
+    const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+    const timer = new SystemdTimer({
+      name: sandbox.namePrefix,
+      timer: {
+        OnCalendar: `hourly`,
+        Unit: service.filename,
+      },
+    });
     logPendingStory(
-      `defineService(), defineTimer(), install(), enable(), and start() should work together so a timer can trigger a real workload in the sandbox`,
+      `Systemd.install(), Systemd.enable(), and Systemd.start() should work together so ${timer.filename} can trigger ${service.filename} in the sandbox`,
     );
 
-    expect(typeof defineService).toBe(`function`);
-    expect(typeof defineTimer).toBe(`function`);
-    expect(typeof install).toBe(`function`);
-    expect(typeof enable).toBe(`function`);
-    expect(typeof start).toBe(`function`);
+    expect(typeof systemd.install).toBe(`function`);
+    expect(typeof systemd.enable).toBe(`function`);
+    expect(typeof systemd.start).toBe(`function`);
   });
 });
 
@@ -205,10 +207,20 @@ function logPendingStory(message: string): void {
   console.info(`TODO: ${message}`);
 }
 
+function sandboxSystemd(): Systemd {
+  const sandbox = useCurrentTestSandbox();
+  return new Systemd({
+    executor: guestCommandExecutor,
+    linkUnits: true,
+    scope: `user`,
+    unitDir: sandbox.linkedUnitDir,
+  });
+}
+
 async function guestCommandExecutor(
   command: string,
   args: readonly string[],
-): Promise<{ readonly stderr: string; readonly stdout: string }> {
+): Promise<CommandResult> {
   const stdout = await runGuestCommand(
     [command, ...args].map((part) => shellQuote(part)).join(` `),
   );

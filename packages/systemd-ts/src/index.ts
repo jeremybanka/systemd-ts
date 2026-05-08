@@ -7,39 +7,25 @@ export interface UnitSection {
   readonly [key: string]: string | number | boolean | readonly string[] | undefined;
 }
 
-export interface ServiceUnitDefinition {
-  readonly name?: string;
-  readonly unit?: UnitSection;
-  readonly service: UnitSection;
+export interface SystemdServiceOptions {
   readonly install?: UnitSection;
-}
-
-export interface TimerUnitDefinition {
-  readonly name?: string;
-  readonly unit?: UnitSection;
-  readonly timer: UnitSection;
-  readonly install?: UnitSection;
-}
-
-export interface InstallOptions {
-  readonly directory: string;
   readonly name: string;
-  readonly scope?: `system` | `user`;
-  readonly service?: ServiceUnitDefinition;
-  readonly timer?: TimerUnitDefinition;
+  readonly service: UnitSection;
+  readonly unit?: UnitSection;
 }
 
-export interface InstallResult {
-  readonly directory: string;
-  readonly servicePath?: string;
-  readonly timerPath?: string;
+export interface SystemdTimerOptions {
+  readonly install?: UnitSection;
+  readonly name: string;
+  readonly timer: UnitSection;
+  readonly unit?: UnitSection;
 }
 
-export interface ServiceControlOptions {
+export interface SystemdOptions {
   readonly executor?: CommandExecutor;
-  readonly path?: string;
+  readonly linkUnits?: boolean;
   readonly scope?: `system` | `user`;
-  readonly unit: string;
+  readonly unitDir?: string;
 }
 
 export interface CommandResult {
@@ -49,13 +35,7 @@ export interface CommandResult {
 
 export type CommandExecutor = (command: string, args: readonly string[]) => Promise<CommandResult>;
 
-export interface EnableResult {
-  readonly linkedPath?: string;
-  readonly unit: string;
-}
-
 export interface LogsOptions {
-  readonly scope?: `system` | `user`;
   readonly lines?: number;
 }
 
@@ -63,109 +43,162 @@ export interface NotifyOptions {
   readonly pid?: number;
 }
 
+export type SystemdUnit = SystemdService | SystemdTimer;
+
+export interface InstalledUnit {
+  readonly path: string;
+  readonly unit: SystemdUnit;
+}
+
 const REQUIRED_EXEC_KEYS = [`ExecStart`, `ExecStop`, `ExecReload`] as const;
-type ScalarUnitValue = string | number | boolean;
 const execFileAsync = promisify(execFile);
 
-export function defineService(service: ServiceUnitDefinition): ServiceUnitDefinition {
-  return service;
+export class SystemdService {
+  public readonly install: UnitSection | undefined;
+  public readonly name: string;
+  public readonly service: UnitSection;
+  public readonly unit: UnitSection | undefined;
+
+  public constructor(options: SystemdServiceOptions) {
+    this.name = normalizeUnitName(options.name, `.service`);
+    this.unit = cloneUnitSection(options.unit);
+    this.service = cloneUnitSection(options.service) ?? {};
+    this.install = cloneUnitSection(options.install);
+    Object.freeze(this);
+  }
+
+  public get filename(): string {
+    return `${this.name}.service`;
+  }
+
+  public render(): string {
+    validateServiceSection(this.service);
+    return renderUnitFile([
+      [`Unit`, this.unit],
+      [`Service`, this.service],
+      [`Install`, this.install],
+    ]);
+  }
 }
 
-export function defineTimer(timer: TimerUnitDefinition): TimerUnitDefinition {
-  return timer;
+export class SystemdTimer {
+  public readonly install: UnitSection | undefined;
+  public readonly name: string;
+  public readonly timer: UnitSection;
+  public readonly unit: UnitSection | undefined;
+
+  public constructor(options: SystemdTimerOptions) {
+    this.name = normalizeUnitName(options.name, `.timer`);
+    this.unit = cloneUnitSection(options.unit);
+    this.timer = cloneUnitSection(options.timer) ?? {};
+    this.install = cloneUnitSection(options.install);
+    Object.freeze(this);
+  }
+
+  public get filename(): string {
+    return `${this.name}.timer`;
+  }
+
+  public render(): string {
+    return renderUnitFile([
+      [`Unit`, this.unit],
+      [`Timer`, this.timer],
+      [`Install`, this.install],
+    ]);
+  }
 }
 
-export function renderServiceUnit(service: ServiceUnitDefinition): string {
-  validateServiceUnit(service);
-  return renderUnitFile([
-    [`Unit`, service.unit],
-    [`Service`, service.service],
-    [`Install`, service.install],
-  ]);
+export class SystemdInstallResult {
+  public readonly directory: string;
+  public readonly installed: readonly InstalledUnit[];
+  private readonly pathByFilename: ReadonlyMap<string, string>;
+
+  public constructor(directory: string, installed: readonly InstalledUnit[]) {
+    this.directory = directory;
+    this.installed = Object.freeze([...installed]);
+    this.pathByFilename = new Map(installed.map((entry) => [entry.unit.filename, entry.path]));
+    Object.freeze(this);
+  }
+
+  public pathFor(unit: SystemdUnit): string {
+    const path = this.pathByFilename.get(unit.filename);
+    if (path === undefined) {
+      throw new Error(`No installed path is recorded for ${unit.filename}`);
+    }
+
+    return path;
+  }
 }
 
-export function renderTimerUnit(timer: TimerUnitDefinition): string {
-  return renderUnitFile([
-    [`Unit`, timer.unit],
-    [`Timer`, timer.timer],
-    [`Install`, timer.install],
-  ]);
-}
+export class Systemd {
+  public readonly executor: CommandExecutor;
+  public readonly linkUnits: boolean;
+  public readonly scope: `system` | `user`;
+  public readonly unitDir: string;
 
-export function suggestedServiceFilename(name: string): string {
-  return ensureSuffix(name, `.service`);
-}
+  public constructor(options: SystemdOptions = {}) {
+    this.scope = options.scope ?? `system`;
+    this.unitDir = options.unitDir ?? defaultUnitDirForScope(this.scope);
+    this.linkUnits = options.linkUnits ?? false;
+    this.executor = options.executor ?? defaultCommandExecutor;
+    Object.freeze(this);
+  }
 
-export function suggestedTimerFilename(name: string): string {
-  return ensureSuffix(name, `.timer`);
-}
+  public async install(...units: readonly SystemdUnit[]): Promise<SystemdInstallResult> {
+    if (units.length === 0) {
+      throw new Error(`Systemd.install() requires at least one service or timer`);
+    }
 
-export function validateServiceUnit(service: ServiceUnitDefinition): void {
-  for (const key of REQUIRED_EXEC_KEYS) {
-    const value = service.service[key];
-    if (typeof value === `string` && value.length > 0 && !value.startsWith(`/`)) {
-      throw new Error(`${key} must use an absolute executable path for systemd`);
+    await mkdir(this.unitDir, { recursive: true });
+
+    const installed: InstalledUnit[] = [];
+    for (const unit of units) {
+      const path = join(this.unitDir, unit.filename);
+      await writeFile(path, unit.render(), `utf8`);
+      installed.push({ path, unit });
+    }
+
+    return new SystemdInstallResult(this.unitDir, installed);
+  }
+
+  public async enable(...units: readonly SystemdUnit[]): Promise<void> {
+    if (units.length === 0) {
+      throw new Error(`Systemd.enable() requires at least one service or timer`);
+    }
+
+    const scopeArgs = this.scope === `user` ? [`--user`] : [];
+
+    if (this.linkUnits) {
+      for (const unit of units) {
+        await this.executor(`systemctl`, [...scopeArgs, `link`, this.pathFor(unit)]);
+      }
+    }
+
+    await this.executor(`systemctl`, [...scopeArgs, `daemon-reload`]);
+
+    for (const unit of units) {
+      await this.executor(`systemctl`, [...scopeArgs, `enable`, unit.filename]);
     }
   }
-}
 
-export function timerActivates(serviceName: string): string {
-  return suggestedServiceFilename(serviceName);
-}
-
-export async function install(options: InstallOptions): Promise<InstallResult> {
-  const serviceName = suggestedServiceFilename(options.name);
-  const timerName = suggestedTimerFilename(options.name);
-
-  if (options.service === undefined && options.timer === undefined) {
-    throw new Error(`install() requires at least one of service or timer`);
+  public async start(_unit: SystemdUnit): Promise<void> {
+    throw new Error(`Systemd.start() has not been implemented yet`);
   }
 
-  await mkdir(options.directory, { recursive: true });
-
-  let servicePath: string | undefined;
-  let timerPath: string | undefined;
-
-  if (options.service !== undefined) {
-    servicePath = join(options.directory, serviceName);
-    await writeFile(servicePath, renderServiceUnit(options.service), `utf8`);
+  public async logs(_unit: SystemdUnit, _options?: LogsOptions): Promise<string> {
+    throw new Error(`Systemd.logs() has not been implemented yet`);
   }
 
-  if (options.timer !== undefined) {
-    timerPath = join(options.directory, timerName);
-    await writeFile(timerPath, renderTimerUnit(options.timer), `utf8`);
+  public pathFor(unit: SystemdUnit): string {
+    return join(this.unitDir, unit.filename);
   }
-
-  return {
-    directory: options.directory,
-    ...(servicePath === undefined ? {} : { servicePath }),
-    ...(timerPath === undefined ? {} : { timerPath }),
-  };
 }
 
-export async function enable(options: ServiceControlOptions): Promise<EnableResult> {
-  const executor = options.executor ?? defaultCommandExecutor;
-  const scopeArgs = options.scope === `user` ? [`--user`] : [];
+let lazyDefaultSystemd: Systemd | undefined;
 
-  if (options.path !== undefined) {
-    await executor(`systemctl`, [...scopeArgs, `link`, options.path]);
-    await executor(`systemctl`, [...scopeArgs, `daemon-reload`]);
-  }
-
-  await executor(`systemctl`, [...scopeArgs, `enable`, options.unit]);
-
-  return {
-    unit: options.unit,
-    ...(options.path === undefined ? {} : { linkedPath: options.path }),
-  };
-}
-
-export async function start(_options?: ServiceControlOptions): Promise<void> {
-  throw new Error(`start() has not been implemented yet`);
-}
-
-export async function logs(_options?: LogsOptions): Promise<string> {
-  throw new Error(`logs() has not been implemented yet`);
+export function defaultSystemd(): Systemd {
+  lazyDefaultSystemd ??= new Systemd();
+  return lazyDefaultSystemd;
 }
 
 export const notify = {
@@ -177,8 +210,41 @@ export const notify = {
   },
 };
 
-function ensureSuffix(name: string, suffix: `.service` | `.timer`): string {
-  return name.endsWith(suffix) ? name : `${name}${suffix}`;
+function normalizeUnitName(name: string, suffix: `.service` | `.timer`): string {
+  return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name;
+}
+
+function defaultUnitDirForScope(scope: `system` | `user`): string {
+  if (scope === `user`) {
+    return `${process.env[`HOME`] ?? `~`}/.config/systemd/user`;
+  }
+
+  return `/etc/systemd/system`;
+}
+
+function cloneUnitSection(section: UnitSection | undefined): UnitSection | undefined {
+  if (section === undefined) {
+    return undefined;
+  }
+
+  const entries = Object.entries(section).map(([key, value]) => {
+    if (Array.isArray(value)) {
+      return [key, Object.freeze([...value])] as const;
+    }
+
+    return [key, value] as const;
+  });
+
+  return Object.freeze(Object.fromEntries(entries));
+}
+
+function validateServiceSection(service: UnitSection): void {
+  for (const key of REQUIRED_EXEC_KEYS) {
+    const value = service[key];
+    if (typeof value === `string` && value.length > 0 && !value.startsWith(`/`)) {
+      throw new Error(`${key} must use an absolute executable path for systemd`);
+    }
+  }
 }
 
 function renderUnitFile(
@@ -213,16 +279,16 @@ function renderUnitFile(
   return renderedSections.endsWith(`\n`) ? renderedSections : `${renderedSections}\n`;
 }
 
-function isUnitValueList(value: UnitSection[string]): value is readonly string[] {
-  return Array.isArray(value);
-}
-
-function stringifyUnitValue(value: ScalarUnitValue): string {
+function stringifyUnitValue(value: string | number | boolean): string {
   if (typeof value === `boolean`) {
     return value ? `true` : `false`;
   }
 
   return String(value);
+}
+
+function isUnitValueList(value: UnitSection[string]): value is readonly string[] {
+  return Array.isArray(value);
 }
 
 async function defaultCommandExecutor(
