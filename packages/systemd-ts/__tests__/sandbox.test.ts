@@ -1,5 +1,6 @@
 import { chmod, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { setTimeout as delay } from "node:timers/promises";
 
 import { Logger, type Chronicle } from "takua";
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
@@ -219,19 +220,41 @@ describe(`systemd-ts sandbox`, () => {
   });
 
   test(`signals READY=1 from a notify service process`, () => {
-    logPendingStory(
-      `notify.ready() should send sd_notify readiness to the sandboxed systemd notification socket`,
-    );
+    const sandbox = useCurrentTestSandbox();
+    const socketPath = `/tmp/systemd-ts-ready-${sandbox.id}.sock`;
+    const outputPath = `/tmp/systemd-ts-ready-${sandbox.id}.txt`;
+    return (async () => {
+      await startNotifyCapture(socketPath, outputPath);
+      await notify.ready({
+        executor: guestCommandExecutor,
+        socketPath,
+        status: `ready-status`,
+      });
 
-    expect(typeof notify.ready).toBe(`function`);
+      const payload = await waitForNotifyPayload(outputPath);
+      expect(payload).toContain(`READY=1`);
+      expect(payload).toContain(`STATUS=ready-status`);
+    })();
   });
 
   test(`signals watchdog heartbeats for a service with WatchdogSec configured`, () => {
-    logPendingStory(
-      `notify.watchdog() should emit watchdog heartbeats often enough to keep the sandboxed service healthy`,
-    );
+    const sandbox = useCurrentTestSandbox();
+    const socketPath = `/tmp/systemd-ts-watchdog-${sandbox.id}.sock`;
+    const outputPath = `/tmp/systemd-ts-watchdog-${sandbox.id}.txt`;
+    return (async () => {
+      await startNotifyCapture(socketPath, outputPath);
+      await notify.watchdog({
+        executor: guestCommandExecutor,
+        pid: 1234,
+        socketPath,
+        status: `watchdog-status`,
+      });
 
-    expect(typeof notify.watchdog).toBe(`function`);
+      const payload = await waitForNotifyPayload(outputPath);
+      expect(payload).toContain(`WATCHDOG=1`);
+      expect(payload).toContain(`STATUS=watchdog-status`);
+      expect(payload).toContain(`MAINPID=1234`);
+    })();
   });
 
   test(`installs, enables, and runs a timer-driven service end to end`, () => {
@@ -290,4 +313,51 @@ async function guestCommandExecutor(
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll(`'`, `'\\''`)}'`;
+}
+
+async function startNotifyCapture(socketPath: string, outputPath: string): Promise<void> {
+  const python = [
+    `import os, pathlib, socket, sys`,
+    `socket_path, output_path = sys.argv[1:3]`,
+    `try:`,
+    `    os.unlink(socket_path)`,
+    `except FileNotFoundError:`,
+    `    pass`,
+    `sock = socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM)`,
+    `sock.bind(socket_path)`,
+    `data, _ = sock.recvfrom(4096)`,
+    `pathlib.Path(output_path).write_text(data.decode("utf8"), encoding="utf8")`,
+    `sock.close()`,
+  ].join(`\n`);
+
+  await runGuestCommand(
+    `rm -f ${shellQuote(socketPath)} ${shellQuote(outputPath)}
+nohup python3 -c ${shellQuote(python)} ${shellQuote(socketPath)} ${shellQuote(outputPath)} >/dev/null 2>&1 &`,
+  );
+
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const ready = await runGuestCommand(`if [ -S ${shellQuote(socketPath)} ]; then echo ready; fi`);
+    if (ready.includes(`ready`)) {
+      return;
+    }
+
+    await delay(50);
+  }
+
+  throw new Error(`Timed out waiting for notify capture socket at ${socketPath}`);
+}
+
+async function waitForNotifyPayload(outputPath: string): Promise<string> {
+  for (let attempt = 0; attempt < 30; attempt += 1) {
+    const payload = await runGuestCommand(
+      `if [ -f ${shellQuote(outputPath)} ]; then cat ${shellQuote(outputPath)}; fi`,
+    );
+    if (payload.length > 0) {
+      return payload;
+    }
+
+    await delay(100);
+  }
+
+  throw new Error(`Timed out waiting for notify payload at ${outputPath}`);
 }

@@ -42,7 +42,10 @@ export interface LogsOptions {
 }
 
 export interface NotifyOptions {
+  readonly executor?: CommandExecutor;
   readonly pid?: number;
+  readonly socketPath?: string;
+  readonly status?: string;
 }
 
 export interface StartResult {
@@ -392,11 +395,11 @@ export function defaultSystemd(): Systemd {
 }
 
 export const notify = {
-  async ready(_options?: NotifyOptions): Promise<void> {
-    throw new Error(`notify.ready() has not been implemented yet`);
+  async ready(options: NotifyOptions = {}): Promise<void> {
+    await sendNotify(`READY=1`, options);
   },
-  async watchdog(_options?: NotifyOptions): Promise<void> {
-    throw new Error(`notify.watchdog() has not been implemented yet`);
+  async watchdog(options: NotifyOptions = {}): Promise<void> {
+    await sendNotify(`WATCHDOG=1`, options);
   },
 };
 
@@ -650,4 +653,35 @@ async function defaultCommandExecutor(
     stderr: result.stderr,
     stdout: result.stdout,
   };
+}
+
+async function sendNotify(state: `READY=1` | `WATCHDOG=1`, options: NotifyOptions): Promise<void> {
+  const args: string[] = [state];
+  if (options.pid !== undefined) {
+    args.push(`MAINPID=${options.pid}`);
+  }
+  if (options.status !== undefined) {
+    args.push(`STATUS=${options.status}`);
+  }
+
+  if (options.executor !== undefined) {
+    const command = buildNotifyShellCommand(args, options.socketPath);
+    await options.executor(`bash`, [`-lc`, command]);
+    return;
+  }
+
+  const result = await execFileAsync(`systemd-notify`, args, {
+    env: {
+      ...process.env,
+      ...(options.socketPath === undefined ? {} : { NOTIFY_SOCKET: options.socketPath }),
+    },
+  });
+
+  void result;
+}
+
+function buildNotifyShellCommand(args: readonly string[], socketPath: string | undefined): string {
+  const prefix = socketPath === undefined ? `` : `NOTIFY_SOCKET=${shellQuote(socketPath)} `;
+  const command = [`systemd-notify`, ...args].map(shellQuote).join(` `);
+  return `${prefix}${command}`;
 }
