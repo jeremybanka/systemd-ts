@@ -23,9 +23,6 @@ const config: ReturnType<typeof defineConfig> = defineConfig({
       typeCheck: true,
     },
   },
-  test: {
-    setupFiles: [`./__tests__/setup.ts`],
-  },
   fmt: {},
 });
 
