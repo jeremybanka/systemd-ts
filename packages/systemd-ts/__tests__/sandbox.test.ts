@@ -1,9 +1,17 @@
-import { readFile } from "node:fs/promises";
+import { chmod, readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
 import { Logger, type Chronicle } from "takua";
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { Systemd, SystemdService, SystemdTimer, notify, type CommandResult } from "../src/index.ts";
+import {
+  Executable,
+  Systemd,
+  SystemdService,
+  SystemdTimer,
+  notify,
+  type CommandResult,
+} from "../src/index.ts";
 import { ensureTestHost, runGuestCommand } from "../src/testing/host.ts";
 import {
   createTestSandbox,
@@ -12,10 +20,14 @@ import {
 } from "../src/testing/sandbox.ts";
 
 const installTestName = `installs a user service and timer into an isolated systemd sandbox`;
+const guestExecutableFixturePath = fileURLToPath(
+  new URL(`./fixtures/guest-executable-fixture.sh`, import.meta.url),
+);
 const chronicleLogger = new Logger({ colorEnabled: false });
 let chronicle: Chronicle | undefined;
 
 beforeAll(async () => {
+  await chmod(guestExecutableFixturePath, 0o755);
   await ensureTestHost();
 });
 
@@ -127,6 +139,39 @@ describe(`systemd-ts sandbox`, () => {
       `readlink -f "$HOME/.config/systemd/user/timers.target.wants/${timer.filename}"`,
     );
     expect(wantsLink.trim()).toBe(systemd.pathFor(timer));
+  });
+
+  test(`runs an executable-backed service command inside the sandbox`, async () => {
+    const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
+    const markerFile = `${sandbox.workDir}/executable-marker.txt`;
+    const executable = new Executable({
+      modulePath: guestExecutableFixturePath,
+      runtimeEntrypoint: `/usr/bin/bash`,
+    });
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
+      service: {
+        Type: `oneshot`,
+        Environment: `SYSTEMD_TS_MARKER_FILE=${markerFile}`,
+        ExecStart: executable,
+      },
+    });
+
+    const result = await systemd.install(service);
+    const installedService = await readFile(result.pathFor(service), `utf8`);
+
+    expect(installedService).toContain(`ExecStart=${executable.toExecStart()}`);
+    expect(installedService).toContain(`Environment=SYSTEMD_TS_MARKER_FILE=${markerFile}`);
+    expect(
+      await runGuestCommand(`test -x ${shellQuote(executable.runtimeEntrypoint)} && echo ok`),
+    ).toContain(`ok`);
+
+    await runGuestCommand(
+      `SYSTEMD_TS_MARKER_FILE=${shellQuote(markerFile)} ${executable.toExecStart()}`,
+    );
+
+    expect(await runGuestCommand(`cat ${shellQuote(markerFile)}`)).toBe(`ran`);
   });
 
   test(`starts a oneshot service and observes successful completion`, () => {
