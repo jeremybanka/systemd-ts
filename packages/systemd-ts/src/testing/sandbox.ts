@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { runGuestCommand } from "./host.ts";
+import { getTestHostInfo, runGuestCommand } from "./host.ts";
 
 export interface TestSandbox {
   readonly id: string;
@@ -16,7 +16,7 @@ export async function createTestSandbox(testName?: string): Promise<TestSandbox>
   const id = randomUUID().slice(0, 8);
   const slug = slugify(testName ?? `sandbox`);
   const namePrefix = `systemd-ts-${slug}-${id}`;
-  const rootDir = `/home/jem.linux/.cache/systemd-ts/tests/${namePrefix}`;
+  const rootDir = `${getTestHostInfo().repoRoot}.colima/tests/${namePrefix}`;
   const linkedUnitDir = `${rootDir}/linked-units`;
   const workDir = `${rootDir}/work`;
 

@@ -20,6 +20,7 @@ export interface TestHostInfo {
   readonly colimaHome: string;
   readonly colimaProfile: string;
   readonly limaHome: string;
+  readonly repoRoot: string;
 }
 
 let ensuredHost: Promise<TestHostInfo> | undefined;
@@ -29,6 +30,7 @@ export function getTestHostInfo(): TestHostInfo {
     colimaHome,
     colimaProfile,
     limaHome,
+    repoRoot,
   };
 }
 

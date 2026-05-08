@@ -1,3 +1,6 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+
 export interface UnitSection {
   readonly [key: string]: string | number | boolean | readonly string[] | undefined;
 }
@@ -17,7 +20,17 @@ export interface TimerUnitDefinition {
 }
 
 export interface InstallOptions {
+  readonly directory: string;
+  readonly name: string;
   readonly scope?: `system` | `user`;
+  readonly service?: ServiceUnitDefinition;
+  readonly timer?: TimerUnitDefinition;
+}
+
+export interface InstallResult {
+  readonly directory: string;
+  readonly servicePath?: string;
+  readonly timerPath?: string;
 }
 
 export interface ServiceControlOptions {
@@ -82,8 +95,34 @@ export function timerActivates(serviceName: string): string {
   return suggestedServiceFilename(serviceName);
 }
 
-export async function install(_options?: InstallOptions): Promise<void> {
-  throw new Error(`install() has not been implemented yet`);
+export async function install(options: InstallOptions): Promise<InstallResult> {
+  const serviceName = suggestedServiceFilename(options.name);
+  const timerName = suggestedTimerFilename(options.name);
+
+  if (options.service === undefined && options.timer === undefined) {
+    throw new Error(`install() requires at least one of service or timer`);
+  }
+
+  await mkdir(options.directory, { recursive: true });
+
+  let servicePath: string | undefined;
+  let timerPath: string | undefined;
+
+  if (options.service !== undefined) {
+    servicePath = join(options.directory, serviceName);
+    await writeFile(servicePath, renderServiceUnit(options.service), `utf8`);
+  }
+
+  if (options.timer !== undefined) {
+    timerPath = join(options.directory, timerName);
+    await writeFile(timerPath, renderTimerUnit(options.timer), `utf8`);
+  }
+
+  return {
+    directory: options.directory,
+    ...(servicePath === undefined ? {} : { servicePath }),
+    ...(timerPath === undefined ? {} : { timerPath }),
+  };
 }
 
 export async function enable(_options?: ServiceControlOptions): Promise<void> {

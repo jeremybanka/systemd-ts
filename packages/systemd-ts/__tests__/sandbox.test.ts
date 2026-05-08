@@ -1,7 +1,9 @@
+import { readFile } from "node:fs/promises";
+
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { defineService, defineTimer, enable, install, logs, notify, start } from "../src/index.ts";
-import { ensureTestHost } from "../src/testing/host.ts";
+import { ensureTestHost, runGuestCommand } from "../src/testing/host.ts";
 import {
   createTestSandbox,
   destroyCurrentTestSandbox,
@@ -21,14 +23,57 @@ afterEach(async () => {
 });
 
 describe(`systemd-ts sandbox`, () => {
-  test(`installs a user service and timer into an isolated systemd sandbox`, () => {
+  test(`installs a user service and timer into an isolated systemd sandbox`, async () => {
     const sandbox = useCurrentTestSandbox();
-    logPendingStory(
-      `install() should write unit files into ${sandbox.linkedUnitDir}, reload systemd, and return the installed paths`,
-    );
+    const service = defineService({
+      unit: {
+        Description: `Write a marker file`,
+      },
+      service: {
+        Type: `oneshot`,
+        ExecStart: `/usr/bin/bash -lc 'echo installed > ${sandbox.workDir}/marker.txt'`,
+      },
+      install: {
+        WantedBy: `default.target`,
+      },
+    });
+    const timer = defineTimer({
+      timer: {
+        OnCalendar: `hourly`,
+        Persistent: true,
+        Unit: `${sandbox.namePrefix}.service`,
+      },
+      install: {
+        WantedBy: `timers.target`,
+      },
+    });
 
-    expect(typeof install).toBe(`function`);
+    const result = await install({
+      directory: sandbox.linkedUnitDir,
+      name: sandbox.namePrefix,
+      service,
+      timer,
+    });
+
+    expect(result.directory).toBe(sandbox.linkedUnitDir);
+    expect(result.servicePath).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.service`);
+    expect(result.timerPath).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.timer`);
     expect(sandbox.namePrefix).toContain(`systemd-ts-`);
+
+    const guestFiles = await runGuestCommand(
+      `test -f '${result.servicePath}' && test -f '${result.timerPath}' && echo ok`,
+    );
+    expect(guestFiles).toContain(`ok`);
+
+    const installedService = await readFile(result.servicePath!, `utf8`);
+    const installedTimer = await readFile(result.timerPath!, `utf8`);
+
+    expect(installedService).toContain(`[Service]`);
+    expect(installedService).toContain(
+      `ExecStart=/usr/bin/bash -lc 'echo installed > ${sandbox.workDir}/marker.txt'`,
+    );
+    expect(installedTimer).toContain(`[Timer]`);
+    expect(installedTimer).toContain(`Persistent=true`);
   });
 
   test(`enables a timer so it is wanted by timers.target in the sandbox`, () => {
