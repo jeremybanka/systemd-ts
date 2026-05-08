@@ -42,6 +42,33 @@ describe(`systemd-ts unit`, () => {
     expect(timer.render()).toContain(`Persistent=true`);
   });
 
+  test(`tracks implicit and explicit timer attachment targets`, () => {
+    const service = new SystemdService({
+      name: `backup-db`,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+    const implicitTimer = new SystemdTimer({
+      name: `backup-db`,
+      timer: {
+        OnCalendar: `daily`,
+      },
+    });
+    const explicitTimer = new SystemdTimer({
+      name: `nightly-backup`,
+      timer: {
+        OnCalendar: `daily`,
+        Unit: service.filename,
+      },
+    });
+
+    expect(implicitTimer.targetUnit).toBe(`backup-db.service`);
+    expect(implicitTimer.targetServiceName).toBe(`backup-db`);
+    expect(explicitTimer.targetUnit).toBe(`backup-db.service`);
+    expect(explicitTimer.targetServiceName).toBe(`backup-db`);
+  });
+
   test(`keeps unit definitions immutable`, () => {
     const service = new SystemdService({
       name: `backup-db`,
@@ -69,3 +96,42 @@ describe(`systemd-ts unit`, () => {
     expect(new Systemd().unitDir).toBe(`/etc/systemd/system`);
   });
 });
+
+function assertTypeRelationships(): void {
+  const systemd = new Systemd({
+    unitDir: `/tmp/systemd-ts-typecheck`,
+  });
+  const attachedService = new SystemdService({
+    name: `backup-db`,
+    service: {
+      ExecStart: `/usr/bin/true`,
+    },
+  });
+  const attachedTimer = new SystemdTimer({
+    name: `nightly-backup`,
+    timer: {
+      OnCalendar: `daily`,
+      Unit: attachedService.filename,
+    },
+  });
+  const implicitTimer = new SystemdTimer({
+    name: `backup-db`,
+    timer: {
+      OnCalendar: `daily`,
+    },
+  });
+  const mismatchedService = new SystemdService({
+    name: `cleanup-db`,
+    service: {
+      ExecStart: `/usr/bin/true`,
+    },
+  });
+
+  void systemd.install(attachedService, attachedTimer);
+  void systemd.install(attachedService, implicitTimer);
+
+  // @ts-expect-error mismatched timers and services should be rejected when both are present
+  void systemd.install(mismatchedService, attachedTimer);
+}
+
+void assertTypeRelationships;

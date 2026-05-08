@@ -43,32 +43,94 @@ export interface NotifyOptions {
   readonly pid?: number;
 }
 
-export type SystemdUnit = SystemdService | SystemdTimer;
+type StripUnitSuffix<
+  Value extends string,
+  Suffix extends string,
+> = Value extends `${infer Base}${Suffix}` ? Base : Value;
 
-export interface InstalledUnit {
-  readonly path: string;
-  readonly unit: SystemdUnit;
+type ServiceBaseName<Value extends string> = StripUnitSuffix<Value, `.service`>;
+type TimerBaseName<Value extends string> = StripUnitSuffix<Value, `.timer`>;
+type ServiceFilename<Value extends string> = `${ServiceBaseName<Value>}.service`;
+type TimerFilename<Value extends string> = `${TimerBaseName<Value>}.timer`;
+
+type TimerTargetUnit<TOptions extends SystemdTimerOptions> = TOptions[`timer`] extends {
+  readonly Unit: infer UnitName extends string;
 }
+  ? UnitName
+  : ServiceFilename<TOptions[`name`]>;
+
+type TimerTargetServiceName<TOptions extends SystemdTimerOptions> =
+  TimerTargetUnit<TOptions> extends `${infer Base}.service` ? Base : never;
+
+type IsWideString<Value extends string> = string extends Value ? true : false;
+
+export type AnySystemdService = SystemdService<SystemdServiceOptions>;
+export type AnySystemdTimer = SystemdTimer<SystemdTimerOptions>;
+export type SystemdUnit = AnySystemdService | AnySystemdTimer;
+
+export interface InstalledUnit<TUnit extends SystemdUnit = SystemdUnit> {
+  readonly path: string;
+  readonly unit: TUnit;
+}
+
+type ServiceNamesIn<TUnits extends readonly SystemdUnit[]> = TUnits[number] extends infer TUnit
+  ? TUnit extends AnySystemdService
+    ? TUnit[`name`]
+    : never
+  : never;
+
+type TimerMatchesAnyService<TTimer extends AnySystemdTimer, TServiceNames extends string> =
+  IsWideString<TimerTargetServiceName<TTimer[`options`]>> extends true
+    ? true
+    : IsWideString<TServiceNames> extends true
+      ? true
+      : [Extract<TServiceNames, TimerTargetServiceName<TTimer[`options`]>>] extends [never]
+        ? false
+        : true;
+
+type MismatchedTimers<TUnits extends readonly SystemdUnit[]> = TUnits[number] extends infer TUnit
+  ? TUnit extends AnySystemdTimer
+    ? TimerMatchesAnyService<TUnit, ServiceNamesIn<TUnits>> extends true
+      ? never
+      : TUnit
+    : never
+  : never;
+
+type HasServices<TUnits extends readonly SystemdUnit[]> = [ServiceNamesIn<TUnits>] extends [never]
+  ? false
+  : true;
+
+type HasMismatchedServiceTimerPairs<TUnits extends readonly SystemdUnit[]> =
+  HasServices<TUnits> extends true
+    ? [MismatchedTimers<TUnits>] extends [never]
+      ? false
+      : true
+    : false;
+
+type ValidInstallUnits<TUnits extends readonly SystemdUnit[]> =
+  HasMismatchedServiceTimerPairs<TUnits> extends true ? never : TUnits;
 
 const REQUIRED_EXEC_KEYS = [`ExecStart`, `ExecStop`, `ExecReload`] as const;
 const execFileAsync = promisify(execFile);
 
-export class SystemdService {
-  public readonly install: UnitSection | undefined;
-  public readonly name: string;
-  public readonly service: UnitSection;
-  public readonly unit: UnitSection | undefined;
+export class SystemdService<const TOptions extends SystemdServiceOptions = SystemdServiceOptions> {
+  public readonly install: TOptions[`install`] | undefined;
+  public readonly name: ServiceBaseName<TOptions[`name`]>;
+  public readonly options: Readonly<TOptions>;
+  public readonly service: TOptions[`service`];
+  public readonly unit: TOptions[`unit`] | undefined;
 
-  public constructor(options: SystemdServiceOptions) {
-    this.name = normalizeUnitName(options.name, `.service`);
-    this.unit = cloneUnitSection(options.unit);
-    this.service = cloneUnitSection(options.service) ?? {};
-    this.install = cloneUnitSection(options.install);
+  public constructor(options: TOptions) {
+    this.options = freezeUnitOptions(options);
+    this.name = normalizeUnitName(options.name, `.service`) as ServiceBaseName<TOptions[`name`]>;
+    this.unit = cloneUnitSection(options.unit) as TOptions[`unit`] | undefined;
+    this.service = (cloneUnitSection(options.service) ?? {}) as TOptions[`service`];
+    this.install = cloneUnitSection(options.install) as TOptions[`install`] | undefined;
     Object.freeze(this);
   }
 
-  public get filename(): string {
-    return `${this.name}.service`;
+  public get filename(): ServiceFilename<TOptions[`name`]> {
+    return `${this.name}.service` as ServiceFilename<TOptions[`name`]>;
   }
 
   public render(): string {
@@ -81,22 +143,31 @@ export class SystemdService {
   }
 }
 
-export class SystemdTimer {
-  public readonly install: UnitSection | undefined;
-  public readonly name: string;
-  public readonly timer: UnitSection;
-  public readonly unit: UnitSection | undefined;
+export class SystemdTimer<const TOptions extends SystemdTimerOptions = SystemdTimerOptions> {
+  public readonly install: TOptions[`install`] | undefined;
+  public readonly name: TimerBaseName<TOptions[`name`]>;
+  public readonly options: Readonly<TOptions>;
+  public readonly targetServiceName: TimerTargetServiceName<TOptions>;
+  public readonly targetUnit: TimerTargetUnit<TOptions>;
+  public readonly timer: TOptions[`timer`];
+  public readonly unit: TOptions[`unit`] | undefined;
 
-  public constructor(options: SystemdTimerOptions) {
-    this.name = normalizeUnitName(options.name, `.timer`);
-    this.unit = cloneUnitSection(options.unit);
-    this.timer = cloneUnitSection(options.timer) ?? {};
-    this.install = cloneUnitSection(options.install);
+  public constructor(options: TOptions) {
+    this.options = freezeUnitOptions(options);
+    this.name = normalizeUnitName(options.name, `.timer`) as TimerBaseName<TOptions[`name`]>;
+    this.unit = cloneUnitSection(options.unit) as TOptions[`unit`] | undefined;
+    this.timer = (cloneUnitSection(options.timer) ?? {}) as TOptions[`timer`];
+    this.install = cloneUnitSection(options.install) as TOptions[`install`] | undefined;
+    this.targetUnit = resolveTimerTargetUnit(options) as TimerTargetUnit<TOptions>;
+    this.targetServiceName = normalizeUnitName(
+      this.targetUnit,
+      `.service`,
+    ) as TimerTargetServiceName<TOptions>;
     Object.freeze(this);
   }
 
-  public get filename(): string {
-    return `${this.name}.timer`;
+  public get filename(): TimerFilename<TOptions[`name`]> {
+    return `${this.name}.timer` as TimerFilename<TOptions[`name`]>;
   }
 
   public render(): string {
@@ -108,19 +179,19 @@ export class SystemdTimer {
   }
 }
 
-export class SystemdInstallResult {
+export class SystemdInstallResult<TUnits extends readonly SystemdUnit[] = readonly SystemdUnit[]> {
   public readonly directory: string;
-  public readonly installed: readonly InstalledUnit[];
+  public readonly installed: readonly InstalledUnit<TUnits[number]>[];
   private readonly pathByFilename: ReadonlyMap<string, string>;
 
-  public constructor(directory: string, installed: readonly InstalledUnit[]) {
+  public constructor(directory: string, installed: readonly InstalledUnit<TUnits[number]>[]) {
     this.directory = directory;
     this.installed = Object.freeze([...installed]);
     this.pathByFilename = new Map(installed.map((entry) => [entry.unit.filename, entry.path]));
     Object.freeze(this);
   }
 
-  public pathFor(unit: SystemdUnit): string {
+  public pathFor(unit: TUnits[number]): string {
     const path = this.pathByFilename.get(unit.filename);
     if (path === undefined) {
       throw new Error(`No installed path is recorded for ${unit.filename}`);
@@ -144,21 +215,24 @@ export class Systemd {
     Object.freeze(this);
   }
 
-  public async install(...units: readonly SystemdUnit[]): Promise<SystemdInstallResult> {
+  public async install<const TUnits extends readonly SystemdUnit[]>(
+    ...units: ValidInstallUnits<TUnits>
+  ): Promise<SystemdInstallResult<TUnits>> {
     if (units.length === 0) {
       throw new Error(`Systemd.install() requires at least one service or timer`);
     }
 
+    assertInstallableTogether(units);
     await mkdir(this.unitDir, { recursive: true });
 
-    const installed: InstalledUnit[] = [];
+    const installed: InstalledUnit<TUnits[number]>[] = [];
     for (const unit of units) {
       const path = join(this.unitDir, unit.filename);
       await writeFile(path, unit.render(), `utf8`);
       installed.push({ path, unit });
     }
 
-    return new SystemdInstallResult(this.unitDir, installed);
+    return new SystemdInstallResult<TUnits>(this.unitDir, installed);
   }
 
   public async enable(...units: readonly SystemdUnit[]): Promise<void> {
@@ -214,6 +288,15 @@ function normalizeUnitName(name: string, suffix: `.service` | `.timer`): string 
   return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name;
 }
 
+function resolveTimerTargetUnit(options: SystemdTimerOptions): string {
+  const explicitTarget = options.timer[`Unit`];
+  if (typeof explicitTarget === `string` && explicitTarget.length > 0) {
+    return explicitTarget;
+  }
+
+  return `${normalizeUnitName(options.name, `.timer`)}.service`;
+}
+
 function defaultUnitDirForScope(scope: `system` | `user`): string {
   if (scope === `user`) {
     return `${process.env[`HOME`] ?? `~`}/.config/systemd/user`;
@@ -222,9 +305,33 @@ function defaultUnitDirForScope(scope: `system` | `user`): string {
   return `/etc/systemd/system`;
 }
 
-function cloneUnitSection(section: UnitSection | undefined): UnitSection | undefined {
+function freezeUnitOptions<TOptions extends SystemdServiceOptions | SystemdTimerOptions>(
+  options: TOptions,
+): Readonly<TOptions> {
+  return Object.freeze({
+    ...options,
+    ...(options.unit === undefined ? {} : { unit: cloneUnitSection(options.unit) }),
+    ...(options.install === undefined ? {} : { install: cloneUnitSection(options.install) }),
+    ...(hasServiceSection(options) ? { service: cloneUnitSection(options.service) } : {}),
+    ...(hasTimerSection(options) ? { timer: cloneUnitSection(options.timer) } : {}),
+  }) as Readonly<TOptions>;
+}
+
+function hasServiceSection(
+  options: SystemdServiceOptions | SystemdTimerOptions,
+): options is SystemdServiceOptions {
+  return `service` in options;
+}
+
+function hasTimerSection(
+  options: SystemdServiceOptions | SystemdTimerOptions,
+): options is SystemdTimerOptions {
+  return `timer` in options;
+}
+
+function cloneUnitSection<TSection extends UnitSection | undefined>(section: TSection): TSection {
   if (section === undefined) {
-    return undefined;
+    return section;
   }
 
   const entries = Object.entries(section).map(([key, value]) => {
@@ -235,7 +342,7 @@ function cloneUnitSection(section: UnitSection | undefined): UnitSection | undef
     return [key, value] as const;
   });
 
-  return Object.freeze(Object.fromEntries(entries));
+  return Object.freeze(Object.fromEntries(entries)) as TSection;
 }
 
 function validateServiceSection(service: UnitSection): void {
@@ -243,6 +350,30 @@ function validateServiceSection(service: UnitSection): void {
     const value = service[key];
     if (typeof value === `string` && value.length > 0 && !value.startsWith(`/`)) {
       throw new Error(`${key} must use an absolute executable path for systemd`);
+    }
+  }
+}
+
+function assertInstallableTogether(units: readonly SystemdUnit[]): void {
+  const installedServices = new Set(
+    units
+      .filter((unit): unit is AnySystemdService => unit instanceof SystemdService)
+      .map((unit) => unit.name),
+  );
+
+  if (installedServices.size === 0) {
+    return;
+  }
+
+  for (const unit of units) {
+    if (!(unit instanceof SystemdTimer)) {
+      continue;
+    }
+
+    if (!installedServices.has(unit.targetServiceName)) {
+      throw new Error(
+        `Cannot install ${unit.filename} alongside unrelated services: expected ${unit.targetUnit}`,
+      );
     }
   }
 }
