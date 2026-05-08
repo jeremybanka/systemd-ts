@@ -174,36 +174,48 @@ describe(`systemd-ts sandbox`, () => {
     expect(await runGuestCommand(`cat ${shellQuote(markerFile)}`)).toBe(`ran`);
   });
 
-  test(`starts a oneshot service and observes successful completion`, () => {
+  test(`starts a oneshot service and observes successful completion`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
+    const markerFile = `${sandbox.workDir}/start-marker.txt`;
     const service = new SystemdService({
       name: sandbox.namePrefix,
       service: {
-        ExecStart: `/usr/bin/true`,
+        Type: `oneshot`,
+        ExecStart: `/usr/bin/bash -lc 'echo started > ${markerFile}'`,
       },
     });
-    logPendingStory(
-      `Systemd.start() should run ${service.filename} from ${sandbox.workDir}, wait for completion, and expose the final systemd state`,
-    );
 
-    expect(typeof systemd.start).toBe(`function`);
+    await systemd.install(service);
+    const started = await systemd.start(service);
+
+    expect((await runGuestCommand(`cat ${shellQuote(markerFile)}`)).trim()).toBe(`started`);
+    expect(started.unit).toBe(service.filename);
+    expect(started.result).toBe(`success`);
+    expect(started.activeState).toBe(`inactive`);
+    expect(started.subState).toBe(`dead`);
+    expect(started.execMainStatus).toBe(0);
   });
 
-  test(`reads recent journald output for a managed unit`, () => {
+  test(`reads recent journald output for a managed unit`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
+    const logLine = `sandbox-log-${sandbox.id}`;
+    const logFile = `${sandbox.workDir}/service.log`;
     const service = new SystemdService({
       name: sandbox.namePrefix,
       service: {
-        ExecStart: `/usr/bin/true`,
+        Type: `oneshot`,
+        StandardOutput: `append:${logFile}`,
+        ExecStart: `/usr/bin/bash -lc 'echo ${logLine}'`,
       },
     });
-    logPendingStory(
-      `Systemd.logs() should return recent journal lines for ${service.filename} and preserve enough structure for assertions`,
-    );
 
-    expect(typeof systemd.logs).toBe(`function`);
+    await systemd.install(service);
+    await systemd.start(service);
+
+    const logs = await systemd.logs(service, { lines: 20 });
+    expect(logs).toContain(logLine);
   });
 
   test(`signals READY=1 from a notify service process`, () => {

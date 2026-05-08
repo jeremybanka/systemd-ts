@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -43,6 +43,14 @@ export interface LogsOptions {
 
 export interface NotifyOptions {
   readonly pid?: number;
+}
+
+export interface StartResult {
+  readonly activeState: string;
+  readonly execMainStatus: number | undefined;
+  readonly result: string;
+  readonly subState: string;
+  readonly unit: string;
 }
 
 export interface ExecutableOptions {
@@ -272,8 +280,62 @@ export class Systemd {
       throw new Error(`Systemd.enable() requires at least one service or timer`);
     }
 
-    const scopeArgs = this.scope === `user` ? [`--user`] : [];
+    const scopeArgs = this.scopeArgs();
+    await this.prepareUnits(scopeArgs, units);
 
+    for (const unit of units) {
+      await this.executor(`systemctl`, [...scopeArgs, `enable`, unit.filename]);
+    }
+  }
+
+  public async start(unit: SystemdUnit): Promise<StartResult> {
+    const scopeArgs = this.scopeArgs();
+    await this.prepareUnits(scopeArgs, [unit]);
+    await this.executor(`systemctl`, [...scopeArgs, `start`, unit.filename]);
+
+    const status = await this.executor(`systemctl`, [
+      ...scopeArgs,
+      `show`,
+      unit.filename,
+      `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
+    ]);
+
+    return parseStartResult(unit.filename, status.stdout);
+  }
+
+  public async logs(_unit: SystemdUnit, _options?: LogsOptions): Promise<string> {
+    const fileLogPath = resolveUnitLogPath(_unit);
+    if (fileLogPath !== undefined) {
+      const output = await readFile(fileLogPath, `utf8`);
+      return tailLines(output, _options?.lines ?? 50);
+    }
+
+    const scopeArgs = this.scopeArgs();
+    const lines = _options?.lines ?? 50;
+    const command = [
+      `systemctl`,
+      ...scopeArgs,
+      `status`,
+      _unit.filename,
+      `--no-pager`,
+      `--lines`,
+      String(lines),
+    ]
+      .map(shellQuote)
+      .join(` `);
+    const logs = await this.executor(`bash`, [`-lc`, `${command} || true`]);
+
+    return logs.stdout;
+  }
+
+  public pathFor(unit: SystemdUnit): string {
+    return join(this.unitDir, unit.filename);
+  }
+
+  private async prepareUnits(
+    scopeArgs: readonly string[],
+    units: readonly SystemdUnit[],
+  ): Promise<void> {
     if (this.linkUnits) {
       for (const unit of units) {
         await this.executor(`systemctl`, [...scopeArgs, `link`, this.pathFor(unit)]);
@@ -281,23 +343,45 @@ export class Systemd {
     }
 
     await this.executor(`systemctl`, [...scopeArgs, `daemon-reload`]);
+  }
 
-    for (const unit of units) {
-      await this.executor(`systemctl`, [...scopeArgs, `enable`, unit.filename]);
+  private scopeArgs(): readonly string[] {
+    return this.scope === `user` ? [`--user`] : [];
+  }
+}
+
+function resolveUnitLogPath(unit: SystemdUnit): string | undefined {
+  if (!(unit instanceof SystemdService)) {
+    return undefined;
+  }
+
+  for (const key of [`StandardOutput`, `StandardError`] as const) {
+    const value = unit.service[key];
+    if (typeof value !== `string`) {
+      continue;
+    }
+
+    const path = parseFileLogPath(value);
+    if (path !== undefined) {
+      return path;
     }
   }
 
-  public async start(_unit: SystemdUnit): Promise<void> {
-    throw new Error(`Systemd.start() has not been implemented yet`);
+  return undefined;
+}
+
+function parseFileLogPath(value: string): string | undefined {
+  for (const prefix of [`append:`, `file:`] as const) {
+    if (value.startsWith(prefix)) {
+      return value.slice(prefix.length);
+    }
   }
 
-  public async logs(_unit: SystemdUnit, _options?: LogsOptions): Promise<string> {
-    throw new Error(`Systemd.logs() has not been implemented yet`);
-  }
+  return undefined;
+}
 
-  public pathFor(unit: SystemdUnit): string {
-    return join(this.unitDir, unit.filename);
-  }
+function tailLines(output: string, lines: number): string {
+  return output.split(`\n`).slice(-lines).join(`\n`);
 }
 
 let lazyDefaultSystemd: Systemd | undefined;
@@ -428,6 +512,34 @@ function assertInstallableTogether(units: readonly SystemdUnit[]): void {
       );
     }
   }
+}
+
+function parseStartResult(unit: string, output: string): StartResult {
+  const properties = Object.fromEntries(
+    output
+      .split(`\n`)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .map((line) => {
+        const separatorIndex = line.indexOf(`=`);
+        if (separatorIndex === -1) {
+          return [line, ``] as const;
+        }
+
+        return [line.slice(0, separatorIndex), line.slice(separatorIndex + 1)] as const;
+      }),
+  );
+
+  return {
+    activeState: properties[`ActiveState`] ?? `unknown`,
+    execMainStatus:
+      properties[`ExecMainStatus`] === undefined || properties[`ExecMainStatus`] === ``
+        ? undefined
+        : Number(properties[`ExecMainStatus`]),
+    result: properties[`Result`] ?? `unknown`,
+    subState: properties[`SubState`] ?? `unknown`,
+    unit: properties[`Id`] ?? unit,
+  };
 }
 
 function renderUnitFile(
