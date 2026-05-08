@@ -16,6 +16,23 @@ export interface TimerUnitDefinition {
   readonly install?: UnitSection;
 }
 
+export interface InstallOptions {
+  readonly scope?: `system` | `user`;
+}
+
+export interface ServiceControlOptions {
+  readonly scope?: `system` | `user`;
+}
+
+export interface LogsOptions {
+  readonly scope?: `system` | `user`;
+  readonly lines?: number;
+}
+
+export interface NotifyOptions {
+  readonly pid?: number;
+}
+
 const REQUIRED_EXEC_KEYS = [`ExecStart`, `ExecStop`, `ExecReload`] as const;
 type ScalarUnitValue = string | number | boolean;
 
@@ -64,6 +81,31 @@ export function validateServiceUnit(service: ServiceUnitDefinition): void {
 export function timerActivates(serviceName: string): string {
   return suggestedServiceFilename(serviceName);
 }
+
+export async function install(_options?: InstallOptions): Promise<void> {
+  throw new Error(`install() has not been implemented yet`);
+}
+
+export async function enable(_options?: ServiceControlOptions): Promise<void> {
+  throw new Error(`enable() has not been implemented yet`);
+}
+
+export async function start(_options?: ServiceControlOptions): Promise<void> {
+  throw new Error(`start() has not been implemented yet`);
+}
+
+export async function logs(_options?: LogsOptions): Promise<string> {
+  throw new Error(`logs() has not been implemented yet`);
+}
+
+export const notify = {
+  async ready(_options?: NotifyOptions): Promise<void> {
+    throw new Error(`notify.ready() has not been implemented yet`);
+  },
+  async watchdog(_options?: NotifyOptions): Promise<void> {
+    throw new Error(`notify.watchdog() has not been implemented yet`);
+  },
+};
 
 function ensureSuffix(name: string, suffix: `.service` | `.timer`): string {
   return name.endsWith(suffix) ? name : `${name}${suffix}`;
