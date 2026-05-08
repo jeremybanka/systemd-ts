@@ -1,8 +1,16 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vite-plus";
 
-export default defineConfig({
+const tsgoPath = fileURLToPath(new URL(`../../node_modules/.bin/tsgo`, import.meta.url));
+
+const config: ReturnType<typeof defineConfig> = defineConfig({
   pack: {
-    dts: true,
+    dts: {
+      tsgo: {
+        path: tsgoPath,
+      },
+    },
     exports: true,
   },
   lint: {
@@ -13,3 +21,5 @@ export default defineConfig({
   },
   fmt: {},
 });
+
+export default config;
