@@ -1,4 +1,5 @@
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -24,6 +25,7 @@ export interface TestHostInfo {
 }
 
 let ensuredHost: Promise<TestHostInfo> | undefined;
+let guestShell: GuestShell | undefined;
 
 export function getTestHostInfo(): TestHostInfo {
   return {
@@ -40,11 +42,8 @@ export function ensureTestHost(): Promise<TestHostInfo> {
 }
 
 export async function runGuestCommand(script: string): Promise<string> {
-  const result = await execFileAsync(`colima`, [`ssh`, `--`, `bash`, `-lc`, script], {
-    env: hostEnv,
-  });
-
-  return mergeOutput(result.stdout, result.stderr);
+  const shell = getGuestShell();
+  return shell.run(script);
 }
 
 async function ensureTestHostInner(): Promise<TestHostInfo> {
@@ -103,4 +102,128 @@ async function execColima(args: readonly string[]): Promise<string> {
 
 function mergeOutput(stdout: string, stderr: string): string {
   return [stdout, stderr].filter((output) => output.length > 0).join(`\n`);
+}
+
+function getGuestShell(): GuestShell {
+  guestShell ??= new GuestShell();
+  return guestShell;
+}
+
+class GuestShell {
+  private readonly process = spawn(`colima`, [`ssh`, `--`, `bash`, `--noprofile`, `--norc`, `-s`], {
+    env: hostEnv,
+    stdio: [`pipe`, `pipe`, `pipe`],
+  });
+  private buffer = ``;
+  private current:
+    | {
+        marker: string;
+        reject: (error: Error) => void;
+        resolve: (output: string) => void;
+      }
+    | undefined;
+  private readonly queue: Array<{
+    script: string;
+    reject: (error: Error) => void;
+    resolve: (output: string) => void;
+  }> = [];
+
+  public constructor() {
+    this.process.stdout.setEncoding(`utf8`);
+    this.process.stderr.setEncoding(`utf8`);
+    this.process.stdout.on(`data`, (chunk: string) => this.onData(chunk));
+    this.process.stderr.on(`data`, (chunk: string) => this.onData(chunk));
+    this.process.on(`exit`, (code, signal) => {
+      const reason = new Error(
+        `Persistent guest shell exited unexpectedly (code=${code ?? `null`}, signal=${signal ?? `null`})`,
+      );
+      this.failCurrent(reason);
+      while (this.queue.length > 0) {
+        this.queue.shift()?.reject(reason);
+      }
+      if (guestShell === this) {
+        guestShell = undefined;
+      }
+    });
+
+    process.once(`exit`, () => {
+      this.process.kill();
+    });
+  }
+
+  public run(script: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      this.queue.push({ script, resolve, reject });
+      this.drain();
+    });
+  }
+
+  private drain(): void {
+    if (this.current !== undefined) {
+      return;
+    }
+
+    const next = this.queue.shift();
+    if (next === undefined) {
+      return;
+    }
+
+    const marker = `__SYSTEMD_TS_END_${randomUUID()}__`;
+    this.current = {
+      marker,
+      reject: next.reject,
+      resolve: next.resolve,
+    };
+
+    this.buffer = ``;
+    const command = `{
+${next.script}
+} 2>&1
+status=$?
+printf '\\n${marker}:%s\\n' "$status"
+`;
+
+    this.process.stdin.write(command);
+  }
+
+  private failCurrent(error: Error): void {
+    const current = this.current;
+    this.current = undefined;
+    current?.reject(error);
+  }
+
+  private onData(chunk: string): void {
+    if (this.current === undefined) {
+      return;
+    }
+
+    this.buffer += chunk;
+    const markerIndex = this.buffer.indexOf(this.current.marker);
+    if (markerIndex === -1) {
+      return;
+    }
+
+    const output = this.buffer.slice(0, markerIndex).replace(/\n$/, ``);
+    const statusMatch = this.buffer
+      .slice(markerIndex)
+      .match(/^__SYSTEMD_TS_END_[^:]+__:(\d+)\r?\n?/u);
+
+    if (statusMatch === null) {
+      return;
+    }
+
+    const status = Number(statusMatch[1]);
+    const remainder = this.buffer.slice(markerIndex + statusMatch[0].length);
+    const current = this.current;
+    this.current = undefined;
+    this.buffer = remainder;
+
+    if (status === 0) {
+      current.resolve(output);
+    } else {
+      current.reject(new Error(output.length > 0 ? output : `Guest command failed`));
+    }
+
+    this.drain();
+  }
 }
