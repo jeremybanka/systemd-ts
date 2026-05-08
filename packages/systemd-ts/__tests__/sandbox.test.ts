@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 
+import { Logger } from "takua";
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
 import { defineService, defineTimer, enable, install, logs, notify, start } from "../src/index.ts";
@@ -10,21 +11,47 @@ import {
   useCurrentTestSandbox,
 } from "../src/testing/sandbox.ts";
 
+const installTestName = `installs a user service and timer into an isolated systemd sandbox`;
+const chronicleLogger = new Logger({ colorEnabled: false });
+let installChronicle: ReturnType<Logger[`makeChronicle`]> | undefined;
+
 beforeAll(async () => {
   await ensureTestHost();
 });
 
 beforeEach(async (context) => {
+  if (context.task.name === installTestName) {
+    installChronicle = chronicleLogger.makeChronicle({ inline: false });
+    installChronicle.mark(`beforeEach:start`);
+  }
+
   await createTestSandbox(context.task.name);
+
+  if (context.task.name === installTestName) {
+    installChronicle?.mark(`beforeEach:sandbox-ready`);
+  }
 });
 
-afterEach(async () => {
-  await destroyCurrentTestSandbox();
+afterEach(async (context) => {
+  if (context.task.name === installTestName) {
+    installChronicle?.mark(`afterEach:start`);
+  }
+
+  await destroyCurrentTestSandbox({
+    noisy: context.task.name === installTestName,
+  });
+
+  if (context.task.name === installTestName) {
+    installChronicle?.mark(`afterEach:sandbox-destroyed`);
+    installChronicle?.logMarks();
+    installChronicle = undefined;
+  }
 });
 
 describe(`systemd-ts sandbox`, () => {
-  test(`installs a user service and timer into an isolated systemd sandbox`, async () => {
+  test(installTestName, async () => {
     const sandbox = useCurrentTestSandbox();
+    installChronicle?.mark(`test:start`);
     const service = defineService({
       unit: {
         Description: `Write a marker file`,
@@ -47,6 +74,7 @@ describe(`systemd-ts sandbox`, () => {
         WantedBy: `timers.target`,
       },
     });
+    installChronicle?.mark(`test:definitions-ready`);
 
     const result = await install({
       directory: sandbox.linkedUnitDir,
@@ -54,6 +82,7 @@ describe(`systemd-ts sandbox`, () => {
       service,
       timer,
     });
+    installChronicle?.mark(`test:install-finished`);
 
     expect(result.directory).toBe(sandbox.linkedUnitDir);
     expect(result.servicePath).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.service`);
@@ -63,10 +92,12 @@ describe(`systemd-ts sandbox`, () => {
     const guestFiles = await runGuestCommand(
       `test -f '${result.servicePath}' && test -f '${result.timerPath}' && echo ok`,
     );
+    installChronicle?.mark(`test:guest-path-check-finished`);
     expect(guestFiles).toContain(`ok`);
 
     const installedService = await readFile(result.servicePath!, `utf8`);
     const installedTimer = await readFile(result.timerPath!, `utf8`);
+    installChronicle?.mark(`test:host-read-finished`);
 
     expect(installedService).toContain(`[Service]`);
     expect(installedService).toContain(
@@ -74,6 +105,7 @@ describe(`systemd-ts sandbox`, () => {
     );
     expect(installedTimer).toContain(`[Timer]`);
     expect(installedTimer).toContain(`Persistent=true`);
+    installChronicle?.mark(`test:assertions-finished`);
   });
 
   test(`enables a timer so it is wanted by timers.target in the sandbox`, () => {

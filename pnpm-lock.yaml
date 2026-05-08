@@ -12,6 +12,9 @@ catalogs:
     '@typescript/native-preview':
       specifier: 7.0.0-dev.20260507.1
       version: 7.0.0-dev.20260507.1
+    takua:
+      specifier: 0.1.1
+      version: 0.1.1
     typescript:
       specifier: 6.0.3
       version: 6.0.3
@@ -51,6 +54,9 @@ importers:
       '@typescript/native-preview':
         specifier: 'catalog:'
         version: 7.0.0-dev.20260507.1
+      takua:
+        specifier: 'catalog:'
+        version: 0.1.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -1181,6 +1187,9 @@ packages:
     resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
     engines: {node: '>=4'}
 
+  takua@0.1.1:
+    resolution: {integrity: sha512-0BZ8xPR+MgaNam5kQEhiwPpjdI6MRS6Q0uqGp5Jn7NXhvkw2qcfu9wEzcqhM+Q6Lvwu6qMlQN77vTTZKD+suvQ==}
+
   term-size@2.2.1:
     resolution: {integrity: sha512-wK0Ri4fOGjv/XPy8SBHZChl8CM7uMc5VML7SqiQ0zG7+J5Vr+RMQDoHa2CNT6KHUnTGIXH34UDMkPzAUyapBZg==}
     engines: {node: '>=8'}
@@ -2202,6 +2211,10 @@ snapshots:
       ansi-regex: 5.0.1
 
   strip-bom@3.0.0: {}
+
+  takua@0.1.1:
+    dependencies:
+      picocolors: 1.1.1
 
   term-size@2.2.1: {}
 
