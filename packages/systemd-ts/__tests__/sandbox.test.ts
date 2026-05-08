@@ -3,7 +3,16 @@ import { readFile } from "node:fs/promises";
 import { Logger, type Chronicle } from "takua";
 import { afterEach, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
 
-import { defineService, defineTimer, enable, install, logs, notify, start } from "../src/index.ts";
+import {
+  defineService,
+  defineTimer,
+  enable,
+  install,
+  logs,
+  notify,
+  start,
+  suggestedTimerFilename,
+} from "../src/index.ts";
 import { ensureTestHost, runGuestCommand } from "../src/testing/host.ts";
 import {
   createTestSandbox,
@@ -98,11 +107,49 @@ describe(`systemd-ts sandbox`, () => {
     chronicle?.mark(`test:assertions-finished`);
   });
 
-  test(`enables a timer so it is wanted by timers.target in the sandbox`, () => {
+  test(`enables a timer so it is wanted by timers.target in the sandbox`, async () => {
     const sandbox = useCurrentTestSandbox();
-    logPendingStory(
-      `enable() should create the expected systemd wants-linkage for ${sandbox.namePrefix}*.timer and report that the timer is enabled`,
+    const timerUnit = suggestedTimerFilename(sandbox.namePrefix);
+    const timer = defineTimer({
+      unit: {
+        Description: `Enable me`,
+      },
+      timer: {
+        OnCalendar: `hourly`,
+        Persistent: true,
+        Unit: `${sandbox.namePrefix}.service`,
+      },
+      install: {
+        WantedBy: `timers.target`,
+      },
+    });
+
+    const result = await install({
+      directory: sandbox.linkedUnitDir,
+      name: sandbox.namePrefix,
+      timer,
+    });
+    expect(result.timerPath).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.timer`);
+
+    const enabled = await enable({
+      executor: guestCommandExecutor,
+      path: result.timerPath!,
+      scope: `user`,
+      unit: timerUnit,
+    });
+
+    expect(enabled.unit).toBe(timerUnit);
+    expect(enabled.linkedPath).toBe(result.timerPath);
+
+    const systemdStatus = await runGuestCommand(
+      `systemctl --user is-enabled ${shellQuote(timerUnit)}`,
     );
+    expect(systemdStatus).toContain(`enabled`);
+
+    const wantsLink = await runGuestCommand(
+      `readlink -f "$HOME/.config/systemd/user/timers.target.wants/${timerUnit}"`,
+    );
+    expect(wantsLink.trim()).toBe(result.timerPath);
 
     expect(typeof enable).toBe(`function`);
   });
@@ -156,4 +203,22 @@ describe(`systemd-ts sandbox`, () => {
 
 function logPendingStory(message: string): void {
   console.info(`TODO: ${message}`);
+}
+
+async function guestCommandExecutor(
+  command: string,
+  args: readonly string[],
+): Promise<{ readonly stderr: string; readonly stdout: string }> {
+  const stdout = await runGuestCommand(
+    [command, ...args].map((part) => shellQuote(part)).join(` `),
+  );
+
+  return {
+    stderr: ``,
+    stdout,
+  };
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll(`'`, `'\\''`)}'`;
 }

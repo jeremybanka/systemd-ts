@@ -1,5 +1,7 @@
+import { execFile } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { promisify } from "node:util";
 
 export interface UnitSection {
   readonly [key: string]: string | number | boolean | readonly string[] | undefined;
@@ -34,7 +36,22 @@ export interface InstallResult {
 }
 
 export interface ServiceControlOptions {
+  readonly executor?: CommandExecutor;
+  readonly path?: string;
   readonly scope?: `system` | `user`;
+  readonly unit: string;
+}
+
+export interface CommandResult {
+  readonly stderr: string;
+  readonly stdout: string;
+}
+
+export type CommandExecutor = (command: string, args: readonly string[]) => Promise<CommandResult>;
+
+export interface EnableResult {
+  readonly linkedPath?: string;
+  readonly unit: string;
 }
 
 export interface LogsOptions {
@@ -48,6 +65,7 @@ export interface NotifyOptions {
 
 const REQUIRED_EXEC_KEYS = [`ExecStart`, `ExecStop`, `ExecReload`] as const;
 type ScalarUnitValue = string | number | boolean;
+const execFileAsync = promisify(execFile);
 
 export function defineService(service: ServiceUnitDefinition): ServiceUnitDefinition {
   return service;
@@ -125,8 +143,21 @@ export async function install(options: InstallOptions): Promise<InstallResult> {
   };
 }
 
-export async function enable(_options?: ServiceControlOptions): Promise<void> {
-  throw new Error(`enable() has not been implemented yet`);
+export async function enable(options: ServiceControlOptions): Promise<EnableResult> {
+  const executor = options.executor ?? defaultCommandExecutor;
+  const scopeArgs = options.scope === `user` ? [`--user`] : [];
+
+  if (options.path !== undefined) {
+    await executor(`systemctl`, [...scopeArgs, `link`, options.path]);
+    await executor(`systemctl`, [...scopeArgs, `daemon-reload`]);
+  }
+
+  await executor(`systemctl`, [...scopeArgs, `enable`, options.unit]);
+
+  return {
+    unit: options.unit,
+    ...(options.path === undefined ? {} : { linkedPath: options.path }),
+  };
 }
 
 export async function start(_options?: ServiceControlOptions): Promise<void> {
@@ -192,4 +223,15 @@ function stringifyUnitValue(value: ScalarUnitValue): string {
   }
 
   return String(value);
+}
+
+async function defaultCommandExecutor(
+  command: string,
+  args: readonly string[],
+): Promise<CommandResult> {
+  const result = await execFileAsync(command, [...args]);
+  return {
+    stderr: result.stderr,
+    stdout: result.stdout,
+  };
 }
