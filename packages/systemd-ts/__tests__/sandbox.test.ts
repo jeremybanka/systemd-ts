@@ -13,7 +13,7 @@ import {
   notify,
   type CommandResult,
 } from "../src/index.ts";
-import { ensureTestHost, runGuestCommand } from "../src/testing/host.ts";
+import { ensureTestHost, runGuestCommand, runIsolatedGuestCommand } from "../src/testing/host.ts";
 import {
   createTestSandbox,
   destroyCurrentTestSandbox,
@@ -257,35 +257,53 @@ describe(`systemd-ts sandbox`, () => {
     })();
   });
 
-  test(`installs, enables, and runs a timer-driven service end to end`, () => {
+  test(`installs, enables, and runs a timer-driven service end to end`, async () => {
     const sandbox = useCurrentTestSandbox();
-    const systemd = sandboxSystemd();
+    const systemd = isolatedSandboxSystemd();
+    chronicle?.mark(`timer:start`);
     const service = new SystemdService({
       name: sandbox.namePrefix,
       service: {
+        Type: `oneshot`,
         ExecStart: `/usr/bin/true`,
       },
     });
     const timer = new SystemdTimer({
       name: sandbox.namePrefix,
       timer: {
-        OnCalendar: `hourly`,
+        OnActiveSec: `1s`,
         Unit: service.filename,
       },
+      install: {
+        WantedBy: `timers.target`,
+      },
     });
-    logPendingStory(
-      `Systemd.install(), Systemd.enable(), and Systemd.start() should work together so ${timer.filename} can trigger ${service.filename} in the sandbox`,
+    chronicle?.mark(`timer:definitions-ready`);
+
+    await systemd.install(service, timer);
+    chronicle?.mark(`timer:install-finished`);
+    await systemd.enable(timer);
+    chronicle?.mark(`timer:enable-finished`);
+    const started = await systemd.start(timer);
+    chronicle?.mark(`timer:start-finished`);
+
+    expect(started.unit).toBe(timer.filename);
+    expect(started.activeState).toBe(`active`);
+    expect(started.subState).toBe(`waiting`);
+    const triggered = await waitForTimerTrigger(timer, service);
+    expect(triggered.timerResult).toBe(`success`);
+    expect(triggered.serviceResult).toBe(`success`);
+    expect(triggered.execMainStatus).toBe(0);
+    chronicle?.mark(`timer:marker-observed`);
+
+    await runIsolatedGuestCommand(
+      `systemctl --user stop ${shellQuote(timer.filename)} ${shellQuote(service.filename)} || true
+systemctl --user disable ${shellQuote(timer.filename)} || true
+systemctl --user reset-failed ${shellQuote(service.filename)} || true`,
     );
-
-    expect(typeof systemd.install).toBe(`function`);
-    expect(typeof systemd.enable).toBe(`function`);
-    expect(typeof systemd.start).toBe(`function`);
-  });
+    chronicle?.mark(`timer:manual-cleanup-finished`);
+  }, 15_000);
 });
-
-function logPendingStory(message: string): void {
-  console.info(`TODO: ${message}`);
-}
 
 function sandboxSystemd(): Systemd {
   const sandbox = useCurrentTestSandbox();
@@ -297,11 +315,35 @@ function sandboxSystemd(): Systemd {
   });
 }
 
+function isolatedSandboxSystemd(): Systemd {
+  const sandbox = useCurrentTestSandbox();
+  return new Systemd({
+    executor: isolatedGuestCommandExecutor,
+    linkUnits: true,
+    scope: `user`,
+    unitDir: sandbox.linkedUnitDir,
+  });
+}
+
 async function guestCommandExecutor(
   command: string,
   args: readonly string[],
 ): Promise<CommandResult> {
   const stdout = await runGuestCommand(
+    [command, ...args].map((part) => shellQuote(part)).join(` `),
+  );
+
+  return {
+    stderr: ``,
+    stdout,
+  };
+}
+
+async function isolatedGuestCommandExecutor(
+  command: string,
+  args: readonly string[],
+): Promise<CommandResult> {
+  const stdout = await runIsolatedGuestCommand(
     [command, ...args].map((part) => shellQuote(part)).join(` `),
   );
 
@@ -360,4 +402,89 @@ async function waitForNotifyPayload(outputPath: string): Promise<string> {
   }
 
   throw new Error(`Timed out waiting for notify payload at ${outputPath}`);
+}
+
+async function waitForTimerTrigger(
+  timer: SystemdTimer,
+  service: SystemdService,
+): Promise<{
+  readonly execMainStatus: number | undefined;
+  readonly serviceResult: string;
+  readonly timerResult: string;
+}> {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const timerShow = parseSystemctlShow(
+      await runGuestCommand(
+        `systemctl --user show ${shellQuote(timer.filename)} --property=LastTriggerUSec,Result,ActiveState,SubState`,
+      ),
+    );
+    const serviceShow = parseSystemctlShow(
+      await runGuestCommand(
+        `systemctl --user show ${shellQuote(service.filename)} --property=Result,ExecMainStatus,ActiveState,SubState`,
+      ),
+    );
+
+    const triggered =
+      timerShow[`LastTriggerUSec`] !== undefined &&
+      timerShow[`LastTriggerUSec`] !== `` &&
+      timerShow[`LastTriggerUSec`] !== `n/a`;
+    const serviceResult = serviceShow[`Result`] ?? ``;
+    const execMainStatus = parseNumber(serviceShow[`ExecMainStatus`]);
+
+    if (triggered && serviceResult === `success` && execMainStatus === 0) {
+      return {
+        execMainStatus,
+        serviceResult,
+        timerResult: timerShow[`Result`] ?? ``,
+      };
+    }
+
+    await delay(100);
+  }
+
+  const timerStatus = await runIsolatedGuestCommand(
+    `systemctl --user status ${shellQuote(timer.filename)} ${shellQuote(service.filename)} --no-pager --lines 20 || true`,
+  );
+  const timers = await runIsolatedGuestCommand(
+    `systemctl --user list-timers --all --no-pager | grep ${shellQuote(timer.name)} || true`,
+  );
+  const show = await runIsolatedGuestCommand(
+    `systemctl --user show ${shellQuote(timer.filename)} ${shellQuote(service.filename)} --property=Id,ActiveState,SubState,Result,ExecMainStatus,LastTriggerUSec,NextElapseUSecMonotonic,Triggers,TriggeredBy || true`,
+  );
+
+  throw new Error(
+    [
+      `Timed out waiting for ${timer.filename} to trigger ${service.filename}`,
+      ``,
+      `Timer status:`,
+      timerStatus,
+      ``,
+      `Timer list:`,
+      timers,
+      ``,
+      `Timer show:`,
+      show,
+    ].join(`\n`),
+  );
+}
+
+function parseSystemctlShow(output: string): Record<string, string> {
+  const entries = output
+    .split(`\n`)
+    .filter((line) => line.length > 0 && line.includes(`=`))
+    .map((line) => {
+      const [key, ...rest] = line.split(`=`);
+      return [key, rest.join(`=`)] as const;
+    });
+
+  return Object.fromEntries(entries);
+}
+
+function parseNumber(value: string | undefined): number | undefined {
+  if (value === undefined || value.length === 0) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? undefined : parsed;
 }

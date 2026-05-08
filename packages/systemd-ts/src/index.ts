@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -340,8 +340,9 @@ export class Systemd {
     units: readonly SystemdUnit[],
   ): Promise<void> {
     if (this.linkUnits) {
-      for (const unit of units) {
-        await this.executor(`systemctl`, [...scopeArgs, `link`, this.pathFor(unit)]);
+      const linkPaths = await this.collectLinkPaths(units);
+      for (const path of linkPaths) {
+        await this.executor(`systemctl`, [...scopeArgs, `link`, path]);
       }
     }
 
@@ -350,6 +351,23 @@ export class Systemd {
 
   private scopeArgs(): readonly string[] {
     return this.scope === `user` ? [`--user`] : [];
+  }
+
+  private async collectLinkPaths(units: readonly SystemdUnit[]): Promise<readonly string[]> {
+    const paths = new Set<string>();
+
+    for (const unit of units) {
+      paths.add(this.pathFor(unit));
+
+      if (unit instanceof SystemdTimer) {
+        const targetPath = join(this.unitDir, unit.targetUnit);
+        if (await fileExists(targetPath)) {
+          paths.add(targetPath);
+        }
+      }
+    }
+
+    return [...paths];
   }
 }
 
@@ -653,6 +671,15 @@ async function defaultCommandExecutor(
     stderr: result.stderr,
     stdout: result.stdout,
   };
+}
+
+async function fileExists(path: string): Promise<boolean> {
+  try {
+    await access(path);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 async function sendNotify(state: `READY=1` | `WATCHDOG=1`, options: NotifyOptions): Promise<void> {

@@ -46,6 +46,10 @@ export async function runGuestCommand(script: string): Promise<string> {
   return shell.run(script);
 }
 
+export async function runIsolatedGuestCommand(script: string): Promise<string> {
+  return execColima([`ssh`, `--`, `bash`, `-lc`, script]);
+}
+
 async function ensureTestHostInner(): Promise<TestHostInfo> {
   if (!(await isColimaRunning())) {
     console.info(`Starting repo-local Colima host for integration tests...`);
