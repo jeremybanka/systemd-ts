@@ -1,6 +1,7 @@
 # Codex Instructions
 
 - Use gitmoji for commit messages.
+- Example: `✨ add initial systemd-ts package`
 - Treat `mise` as the core toolchain manager for this repo.
 - If a tool does not come from npm, install and manage it with `mise`.
 - Pin dependencies as exactly as practical. Avoid loose ranges like `^`, `~`, or `latest` unless there is a documented reason.
