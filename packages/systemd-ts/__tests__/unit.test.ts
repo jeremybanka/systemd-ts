@@ -1,6 +1,14 @@
+import { execFile } from "node:child_process";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { promisify } from "node:util";
+
 import { describe, expect, test } from "vite-plus/test";
 
-import { Systemd, SystemdService, SystemdTimer } from "../src/index.ts";
+import { Executable, Systemd, SystemdService, SystemdTimer } from "../src/index.ts";
+
+const execFileAsync = promisify(execFile);
 
 describe(`systemd-ts unit`, () => {
   test(`renders a service unit`, () => {
@@ -94,6 +102,42 @@ describe(`systemd-ts unit`, () => {
 
   test(`defaults system scope to the canonical unit directory`, () => {
     expect(new Systemd().unitDir).toBe(`/etc/systemd/system`);
+  });
+
+  test(`renders ExecStart from an executable helper`, () => {
+    const executable = new Executable({
+      args: [`--flag`, `value`],
+      modulePath: `/srv/app/jobs/backup.ts`,
+      runtimeEntrypoint: `/usr/local/bin/node`,
+    });
+    const service = new SystemdService({
+      name: `backup-db`,
+      service: {
+        ExecStart: executable,
+      },
+    });
+
+    expect(service.render()).toContain(
+      `ExecStart='/usr/local/bin/node' '/srv/app/jobs/backup.ts' '--flag' 'value'`,
+    );
+  });
+
+  test(`defineExecutable runs the current module when executed directly`, async () => {
+    const fixtureDir = await mkdtemp(join(tmpdir(), `systemd-ts-executable-`));
+    const markerFile = join(fixtureDir, `marker.txt`);
+    const moduleFile = new URL(`./fixtures/executable-fixture.ts`, import.meta.url);
+
+    try {
+      await execFileAsync(process.execPath, [moduleFile.pathname], {
+        env: {
+          ...process.env,
+          SYSTEMD_TS_MARKER_FILE: markerFile,
+        },
+      });
+      expect(await readFile(markerFile, `utf8`)).toBe(`ran`);
+    } finally {
+      await rm(fixtureDir, { force: true, recursive: true });
+    }
   });
 });
 

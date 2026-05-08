@@ -1,10 +1,12 @@
 import { execFile } from "node:child_process";
+import { realpathSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 export interface UnitSection {
-  readonly [key: string]: string | number | boolean | readonly string[] | undefined;
+  readonly [key: string]: UnitValue | readonly UnitValue[] | undefined;
 }
 
 export interface SystemdServiceOptions {
@@ -41,6 +43,12 @@ export interface LogsOptions {
 
 export interface NotifyOptions {
   readonly pid?: number;
+}
+
+export interface ExecutableOptions {
+  readonly args?: readonly string[];
+  readonly modulePath?: string;
+  readonly runtimeEntrypoint?: string;
 }
 
 type StripUnitSuffix<
@@ -112,6 +120,30 @@ type ValidInstallUnits<TUnits extends readonly SystemdUnit[]> =
 
 const REQUIRED_EXEC_KEYS = [`ExecStart`, `ExecStop`, `ExecReload`] as const;
 const execFileAsync = promisify(execFile);
+const currentModulePath = fileURLToPath(import.meta.url);
+
+export type UnitValue = string | number | boolean | Executable;
+
+export class Executable {
+  public readonly args: readonly string[];
+  public readonly modulePath: string;
+  public readonly runtimeEntrypoint: string;
+
+  public constructor(options: ExecutableOptions = {}) {
+    this.runtimeEntrypoint = options.runtimeEntrypoint ?? process.execPath;
+    this.modulePath = options.modulePath ?? inferCallerModulePath();
+    this.args = Object.freeze([...(options.args ?? [])]);
+    Object.freeze(this);
+  }
+
+  public toCommandParts(): readonly [string, ...string[]] {
+    return [this.runtimeEntrypoint, this.modulePath, ...this.args];
+  }
+
+  public toExecStart(): string {
+    return this.toCommandParts().map(shellQuote).join(` `);
+  }
+}
 
 export class SystemdService<const TOptions extends SystemdServiceOptions = SystemdServiceOptions> {
   public readonly install: TOptions[`install`] | undefined;
@@ -284,6 +316,22 @@ export const notify = {
   },
 };
 
+export function defineExecutable(
+  fn: () => void | Promise<void>,
+  options: ExecutableOptions = {},
+): Executable {
+  const executable = new Executable(options);
+
+  if (isMainModule(executable.modulePath)) {
+    void Promise.resolve(fn()).catch((error: unknown) => {
+      process.exitCode = 1;
+      throw error;
+    });
+  }
+
+  return executable;
+}
+
 function normalizeUnitName(name: string, suffix: `.service` | `.timer`): string {
   return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name;
 }
@@ -335,7 +383,7 @@ function cloneUnitSection<TSection extends UnitSection | undefined>(section: TSe
   }
 
   const entries = Object.entries(section).map(([key, value]) => {
-    if (Array.isArray(value)) {
+    if (isUnitValueList(value)) {
       return [key, Object.freeze([...value])] as const;
     }
 
@@ -349,6 +397,10 @@ function validateServiceSection(service: UnitSection): void {
   for (const key of REQUIRED_EXEC_KEYS) {
     const value = service[key];
     if (typeof value === `string` && value.length > 0 && !value.startsWith(`/`)) {
+      throw new Error(`${key} must use an absolute executable path for systemd`);
+    }
+
+    if (value instanceof Executable && !value.runtimeEntrypoint.startsWith(`/`)) {
       throw new Error(`${key} must use an absolute executable path for systemd`);
     }
   }
@@ -410,7 +462,11 @@ function renderUnitFile(
   return renderedSections.endsWith(`\n`) ? renderedSections : `${renderedSections}\n`;
 }
 
-function stringifyUnitValue(value: string | number | boolean): string {
+function stringifyUnitValue(value: UnitValue): string {
+  if (value instanceof Executable) {
+    return value.toExecStart();
+  }
+
   if (typeof value === `boolean`) {
     return value ? `true` : `false`;
   }
@@ -418,8 +474,59 @@ function stringifyUnitValue(value: string | number | boolean): string {
   return String(value);
 }
 
-function isUnitValueList(value: UnitSection[string]): value is readonly string[] {
+function isUnitValueList(value: UnitSection[string]): value is readonly UnitValue[] {
   return Array.isArray(value);
+}
+
+function inferCallerModulePath(): string {
+  const stack = new Error().stack ?? ``;
+  for (const line of stack.split(`\n`).slice(1)) {
+    const candidate = extractStackPath(line);
+    if (candidate === undefined || candidate === currentModulePath) {
+      continue;
+    }
+
+    return candidate;
+  }
+
+  throw new Error(
+    `Could not infer the calling module path for defineExecutable(); pass { modulePath } explicitly`,
+  );
+}
+
+function extractStackPath(line: string): string | undefined {
+  const fileUrlMatch = line.match(/(file:\/\/\/[^)\s:]+(?:\.[cm]?[jt]s)?)/u);
+  if (fileUrlMatch !== null) {
+    return fileURLToPath(fileUrlMatch[1]);
+  }
+
+  const pathMatch = line.match(/(\/[^)\s:]+(?:\.[cm]?[jt]s)?)/u);
+  if (pathMatch !== null) {
+    return pathMatch[1];
+  }
+
+  return undefined;
+}
+
+function isMainModule(modulePath: string): boolean {
+  const mainArg = process.argv[1];
+  if (mainArg === undefined) {
+    return false;
+  }
+
+  return normalizeFilePath(mainArg) === normalizeFilePath(modulePath);
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll(`'`, `'\\''`)}'`;
+}
+
+function normalizeFilePath(path: string): string {
+  try {
+    return realpathSync(path);
+  } catch {
+    return path;
+  }
 }
 
 async function defaultCommandExecutor(
