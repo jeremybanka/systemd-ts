@@ -58,7 +58,7 @@ export class Systemd {
   }
 
   public async install<const TUnits extends readonly SystemdUnit[]>(
-    ...units: ValidInstallUnits<TUnits>
+    ...units: TUnits & ValidInstallUnits<TUnits>
   ): Promise<SystemdInstallResult<TUnits>> {
     if (units.length === 0) {
       throw new Error(`Systemd.install() requires at least one service or timer`);

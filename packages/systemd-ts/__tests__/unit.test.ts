@@ -164,8 +164,16 @@ function assertTypeRelationships(): void {
       OnCalendar: `daily`,
     },
   });
+  const mismatchedService = new SystemdService({
+    name: `cleanup-db`,
+    service: {
+      ExecStart: `/usr/bin/true`,
+    },
+  });
   void systemd.install(attachedService, attachedTimer);
   void systemd.install(attachedService, implicitTimer);
+  // @ts-expect-error mismatched timers and services should be rejected when both are present
+  void systemd.install(mismatchedService, attachedTimer);
 
   void new SystemdTimer({
     name: `typo-timer`,

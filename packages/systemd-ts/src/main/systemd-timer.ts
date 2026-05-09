@@ -23,7 +23,7 @@ export class SystemdTimer<const TOptions extends SystemdTimerOptions = SystemdTi
   public readonly timer: TOptions[`timer`];
   public readonly unit: TOptions[`unit`] | undefined;
 
-  public constructor(options: ExactSystemdTimerOptions<TOptions>) {
+  public constructor(options: TOptions & ExactSystemdTimerOptions<TOptions>) {
     this.options = freezeUnitOptions(options as unknown as TOptions);
     this.name = normalizeUnitName(options.name, `.timer`) as TimerBaseName<TOptions[`name`]>;
     this.unit = cloneUnitSection(options.unit) as TOptions[`unit`] | undefined;

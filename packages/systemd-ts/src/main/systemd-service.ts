@@ -19,7 +19,7 @@ export class SystemdService<const TOptions extends SystemdServiceOptions = Syste
   public readonly service: TOptions[`service`];
   public readonly unit: TOptions[`unit`] | undefined;
 
-  public constructor(options: ExactSystemdServiceOptions<TOptions>) {
+  public constructor(options: TOptions & ExactSystemdServiceOptions<TOptions>) {
     this.options = freezeUnitOptions(options as unknown as TOptions);
     this.name = normalizeUnitName(options.name, `.service`) as ServiceBaseName<TOptions[`name`]>;
     this.unit = cloneUnitSection(options.unit) as TOptions[`unit`] | undefined;
