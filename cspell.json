@@ -13,8 +13,8 @@
     "pnpm-lock.yaml"
   ],
   "words": [
-    "Colima",
     "cgroupns",
+    "Colima",
     "dbus",
     "getent",
     "gitmoji",
@@ -24,14 +24,15 @@
     "norc",
     "oneshot",
     "pathlib",
+    "Persistant", // used for a typo in a test
     "pipefail",
     "recvfrom",
     "systemd",
     "takua",
     "tmpfs",
     "vite",
-    "vitest",
     "viteplus",
+    "vitest",
     "voidzero"
   ]
 }
