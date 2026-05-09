@@ -22,7 +22,7 @@ defaults:
 jobs:
   VitePlus:
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: ./.github/actions/setup
@@ -30,7 +30,7 @@ jobs:
 
   Dependencies:
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: ./.github/actions/setup
@@ -38,7 +38,7 @@ jobs:
 
   Spelling:
     runs-on: ubuntu-latest
-    timeout-minutes: 9
+    timeout-minutes: 2
     steps:
       - uses: actions/checkout@v6.0.2
       - uses: ./.github/actions/setup

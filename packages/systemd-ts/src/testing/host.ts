@@ -8,6 +8,7 @@ const execFileAsync = promisify(execFile);
 const commandMaxBufferBytes = 16 * 1024 * 1024;
 const dockerBuildTimeoutMs = 5 * 60 * 1_000;
 const dockerExecTimeoutMs = 60 * 1_000;
+const guestCommandTimeoutMs = 10 * 1_000;
 const repoRoot = fileURLToPath(new URL(`../../../../`, import.meta.url));
 const dockerfilePath = fileURLToPath(new URL(`./systemd-container.Dockerfile`, import.meta.url));
 const selectedBackendName = resolveBackendName(process.env[`SYSTEMD_TS_TEST_HOST_BACKEND`]);
@@ -71,8 +72,9 @@ async function ensureTestHostInner(): Promise<TestHostInfo> {
 
 async function waitForUserSystemd(): Promise<void> {
   for (let attempt = 0; attempt < 30; attempt += 1) {
-    const state = await runGuestCommand(
+    const state = await runGuestCommandWithTimeout(
       `printf 'pid1=%s\n' "$(ps -p 1 -o comm=)"; systemctl --user is-system-running || true; printf 'xdg=%s\n' "$XDG_RUNTIME_DIR"`,
+      guestCommandTimeoutMs,
     );
 
     if (
@@ -108,6 +110,29 @@ function getGuestShell(): GuestShell {
     },
   );
   return guestShell;
+}
+
+function closeGuestShell(reason: string): void {
+  if (guestShell === undefined) {
+    return;
+  }
+
+  logTestHost(`Resetting guest shell: ${reason}`);
+  guestShell.close();
+  guestShell = undefined;
+}
+
+async function runGuestCommandWithTimeout(script: string, timeoutMs: number): Promise<string> {
+  const shell = getGuestShell();
+  try {
+    return await shell.run(script, timeoutMs);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes(`timed out`)) {
+      closeGuestShell(error.message);
+    }
+
+    throw error;
+  }
 }
 
 function mergeOutput(stdout: string, stderr: string): string {
@@ -477,10 +502,12 @@ class DockerBackend implements TestHostBackend {
 class GuestShell {
   private readonly process: ChildProcessWithoutNullStreams;
   private readonly onExitCleanup: () => void;
+  private closed = false;
   private buffer = ``;
   private current:
     | {
         marker: string;
+        timeoutId: NodeJS.Timeout | undefined;
         reject: (error: Error) => void;
         resolve: (output: string) => void;
       }
@@ -489,6 +516,7 @@ class GuestShell {
     script: string;
     reject: (error: Error) => void;
     resolve: (output: string) => void;
+    timeoutMs: number | undefined;
   }> = [];
 
   public constructor(
@@ -517,11 +545,20 @@ class GuestShell {
     });
   }
 
-  public run(script: string): Promise<string> {
+  public run(script: string, timeoutMs?: number): Promise<string> {
     return new Promise((resolve, reject) => {
-      this.queue.push({ script, resolve, reject });
+      this.queue.push({ script, resolve, reject, timeoutMs });
       this.drain();
     });
+  }
+
+  public close(): void {
+    if (this.closed) {
+      return;
+    }
+
+    this.closed = true;
+    this.process.kill();
   }
 
   private drain(): void {
@@ -535,8 +572,21 @@ class GuestShell {
     }
 
     const marker = `__SYSTEMD_TS_END_${randomUUID()}__`;
+    const timeoutId =
+      next.timeoutMs === undefined
+        ? undefined
+        : setTimeout(() => {
+            if (this.current?.marker !== marker) {
+              return;
+            }
+
+            const reason = new Error(`Guest command timed out after ${next.timeoutMs}ms`);
+            this.failCurrent(reason);
+            this.close();
+          }, next.timeoutMs);
     this.current = {
       marker,
+      timeoutId,
       reject: next.reject,
       resolve: next.resolve,
     };
@@ -555,6 +605,9 @@ printf '\\n${marker}:%s\\n' "$status"
   private failCurrent(error: Error): void {
     const current = this.current;
     this.current = undefined;
+    if (current?.timeoutId !== undefined) {
+      clearTimeout(current.timeoutId);
+    }
     current?.reject(error);
   }
 
@@ -583,6 +636,9 @@ printf '\\n${marker}:%s\\n' "$status"
     const current = this.current;
     this.current = undefined;
     this.buffer = remainder;
+    if (current.timeoutId !== undefined) {
+      clearTimeout(current.timeoutId);
+    }
 
     if (status === 0) {
       current.resolve(output);
