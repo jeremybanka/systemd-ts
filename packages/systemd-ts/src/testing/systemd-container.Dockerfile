@@ -21,7 +21,7 @@ RUN apt-get update \
  && apt-get clean \
  && rm -rf /var/lib/apt/lists/*
 
-RUN useradd --create-home --uid 1000 --shell /bin/bash runner \
+RUN useradd --create-home --shell /bin/bash runner \
  && printf 'runner ALL=(ALL) NOPASSWD:ALL\n' >/etc/sudoers.d/runner \
  && chmod 0440 /etc/sudoers.d/runner
 

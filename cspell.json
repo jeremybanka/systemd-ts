@@ -16,6 +16,7 @@
     "Colima",
     "cgroupns",
     "dbus",
+    "getent",
     "gitmoji",
     "MAINPID",
     "nohup",

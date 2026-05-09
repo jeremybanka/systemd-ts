@@ -15,11 +15,9 @@ const colimaProfile = process.env[`COLIMA_PROFILE`] ?? `systemd-ts`;
 const dockerStateRoot = process.env[`SYSTEMD_TS_TEST_HOST_ROOT`] ?? `${repoRoot}.docker`;
 const dockerImage = process.env[`SYSTEMD_TS_TEST_DOCKER_IMAGE`] ?? `systemd-ts-test-host:local`;
 const dockerUser = process.env[`SYSTEMD_TS_TEST_DOCKER_USER`] ?? `runner`;
-const dockerUserId = Number(process.env[`SYSTEMD_TS_TEST_DOCKER_UID`] ?? `1000`);
+const dockerConfiguredUserId = process.env[`SYSTEMD_TS_TEST_DOCKER_UID`];
 const dockerContainer =
   process.env[`SYSTEMD_TS_TEST_DOCKER_CONTAINER`] ?? defaultDockerContainerName();
-const dockerUserRuntimeDir = `/run/user/${dockerUserId}`;
-const dockerUserHome = `/home/${dockerUser}`;
 
 export interface TestHostInfo {
   readonly backend: TestHostBackendName;
@@ -216,6 +214,14 @@ class DockerBackend implements TestHostBackend {
     stateRoot: dockerStateRoot,
   };
 
+  private runtimeInfo:
+    | {
+        readonly home: string;
+        readonly runtimeDir: string;
+        readonly userId: number;
+      }
+    | undefined;
+
   public async ensureHost(): Promise<void> {
     await this.execDocker([
       `build`,
@@ -259,6 +265,7 @@ class DockerBackend implements TestHostBackend {
   }
 
   public createGuestShellProcess(): ChildProcessWithoutNullStreams {
+    const runtimeInfo = this.requireRuntimeInfo();
     return spawn(
       `docker`,
       [
@@ -267,11 +274,11 @@ class DockerBackend implements TestHostBackend {
         `--user`,
         dockerUser,
         `--env`,
-        `HOME=${dockerUserHome}`,
+        `HOME=${runtimeInfo.home}`,
         `--env`,
-        `XDG_RUNTIME_DIR=${dockerUserRuntimeDir}`,
+        `XDG_RUNTIME_DIR=${runtimeInfo.runtimeDir}`,
         `--env`,
-        `DBUS_SESSION_BUS_ADDRESS=unix:path=${dockerUserRuntimeDir}/bus`,
+        `DBUS_SESSION_BUS_ADDRESS=unix:path=${runtimeInfo.runtimeDir}/bus`,
         dockerContainer,
         `bash`,
         `--noprofile`,
@@ -285,6 +292,7 @@ class DockerBackend implements TestHostBackend {
   }
 
   public async runIsolatedCommand(script: string): Promise<string> {
+    const runtimeInfo = this.requireRuntimeInfo();
     const result = await execFileAsync(
       `docker`,
       [
@@ -292,11 +300,11 @@ class DockerBackend implements TestHostBackend {
         `--user`,
         dockerUser,
         `--env`,
-        `HOME=${dockerUserHome}`,
+        `HOME=${runtimeInfo.home}`,
         `--env`,
-        `XDG_RUNTIME_DIR=${dockerUserRuntimeDir}`,
+        `XDG_RUNTIME_DIR=${runtimeInfo.runtimeDir}`,
         `--env`,
-        `DBUS_SESSION_BUS_ADDRESS=unix:path=${dockerUserRuntimeDir}/bus`,
+        `DBUS_SESSION_BUS_ADDRESS=unix:path=${runtimeInfo.runtimeDir}/bus`,
         dockerContainer,
         `bash`,
         `-lc`,
@@ -331,6 +339,7 @@ class DockerBackend implements TestHostBackend {
   }
 
   private async ensureUserSession(): Promise<void> {
+    const runtimeInfo = await this.resolveRuntimeInfo();
     await this.execDocker([
       `exec`,
       dockerContainer,
@@ -339,7 +348,7 @@ class DockerBackend implements TestHostBackend {
       [
         `mkdir -p ${shellQuote(dockerStateRoot)}`,
         `loginctl enable-linger ${shellQuote(dockerUser)}`,
-        `systemctl start user@${dockerUserId}.service`,
+        `systemctl start user@${runtimeInfo.userId}.service`,
       ].join(`\n`),
     ]);
   }
@@ -347,6 +356,76 @@ class DockerBackend implements TestHostBackend {
   private async execDocker(args: readonly string[]): Promise<string> {
     const result = await execFileAsync(`docker`, args, { maxBuffer: commandMaxBufferBytes });
     return mergeOutput(result.stdout, result.stderr);
+  }
+
+  private requireRuntimeInfo(): {
+    readonly home: string;
+    readonly runtimeDir: string;
+    readonly userId: number;
+  } {
+    if (this.runtimeInfo === undefined) {
+      throw new Error(`Docker test host runtime info is unavailable before ensureHost() completes`);
+    }
+
+    return this.runtimeInfo;
+  }
+
+  private async resolveRuntimeInfo(): Promise<{
+    readonly home: string;
+    readonly runtimeDir: string;
+    readonly userId: number;
+  }> {
+    if (this.runtimeInfo !== undefined) {
+      return this.runtimeInfo;
+    }
+
+    const userId =
+      dockerConfiguredUserId === undefined
+        ? await this.lookupUserId()
+        : Number(dockerConfiguredUserId);
+    const home = await this.lookupUserHome();
+
+    this.runtimeInfo = {
+      home,
+      runtimeDir: `/run/user/${userId}`,
+      userId,
+    };
+
+    return this.runtimeInfo;
+  }
+
+  private async lookupUserHome(): Promise<string> {
+    const output = await this.execDocker([
+      `exec`,
+      dockerContainer,
+      `bash`,
+      `-lc`,
+      `getent passwd ${shellQuote(dockerUser)} | cut -d: -f6`,
+    ]);
+
+    const home = output.trim();
+    if (home.length === 0) {
+      throw new Error(`Could not resolve home directory for Docker test user ${dockerUser}`);
+    }
+
+    return home;
+  }
+
+  private async lookupUserId(): Promise<number> {
+    const output = await this.execDocker([
+      `exec`,
+      dockerContainer,
+      `bash`,
+      `-lc`,
+      `id -u ${shellQuote(dockerUser)}`,
+    ]);
+
+    const parsed = Number(output.trim());
+    if (!Number.isInteger(parsed)) {
+      throw new Error(`Could not resolve uid for Docker test user ${dockerUser}`);
+    }
+
+    return parsed;
   }
 }
 
