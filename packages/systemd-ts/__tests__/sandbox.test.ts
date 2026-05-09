@@ -30,7 +30,7 @@ let chronicle: Chronicle | undefined;
 beforeAll(async () => {
   await chmod(guestExecutableFixturePath, 0o755);
   await ensureTestHost();
-});
+}, 45_000);
 
 beforeEach(async (context) => {
   chronicle = chronicleLogger.makeChronicle({ inline: false });
@@ -44,7 +44,7 @@ beforeEach(async (context) => {
 afterEach(async () => {
   chronicle?.mark(`afterEach:start`);
 
-  await destroyCurrentTestSandbox({ noisy: false });
+  await destroyCurrentTestSandbox();
 
   chronicle?.mark(`afterEach:sandbox-destroyed`);
   chronicle?.logMarks();
@@ -373,8 +373,10 @@ async function startNotifyCapture(socketPath: string, outputPath: string): Promi
   ].join(`\n`);
 
   await runGuestCommand(
-    `rm -f ${shellQuote(socketPath)} ${shellQuote(outputPath)}
-nohup python3 -c ${shellQuote(python)} ${shellQuote(socketPath)} ${shellQuote(outputPath)} >/dev/null 2>&1 &`,
+    [
+      `rm -f ${shellQuote(socketPath)} ${shellQuote(outputPath)}`,
+      `nohup python3 -c ${shellQuote(python)} ${shellQuote(socketPath)} ${shellQuote(outputPath)} >/dev/null 2>&1 &`,
+    ].join(`\n`),
   );
 
   for (let attempt = 0; attempt < 20; attempt += 1) {

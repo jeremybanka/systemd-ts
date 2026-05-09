@@ -16,6 +16,7 @@ const config: ReturnType<typeof defineConfig> = defineConfig({
       },
     },
     exports: true,
+    deps: { onlyBundle: [] },
   },
   lint: {
     options: {

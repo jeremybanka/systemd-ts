@@ -1,0 +1,38 @@
+name: Test
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types: [opened, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_API: ${{ secrets.TURBO_API }}
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAMID: ${{ vars.TURBO_TEAMID }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  Vitest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: ./.github/actions/setup
+      - run: pnpm run test:warmup
+      - run: vp run test
+
+  Build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: ./.github/actions/setup
+      - run: vp run build

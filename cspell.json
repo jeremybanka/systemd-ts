@@ -1,0 +1,37 @@
+{
+  "version": "0.2",
+  "language": "en",
+  "files": ["**/*.md", "**/*.json", "**/*.yml", "**/*.yaml", "**/*.ts", "**/*.mts"],
+  "ignorePaths": [
+    ".git",
+    ".colima",
+    ".pnpm-store",
+    ".turbo",
+    "coverage",
+    "dist",
+    "node_modules",
+    "pnpm-lock.yaml"
+  ],
+  "words": [
+    "Colima",
+    "cgroupns",
+    "dbus",
+    "getent",
+    "gitmoji",
+    "MAINPID",
+    "nohup",
+    "noprofile",
+    "norc",
+    "oneshot",
+    "pathlib",
+    "pipefail",
+    "recvfrom",
+    "systemd",
+    "takua",
+    "tmpfs",
+    "vite",
+    "vitest",
+    "viteplus",
+    "voidzero"
+  ]
+}

@@ -1,4 +1,4 @@
-export { ensureTestHost, getTestHostInfo, runGuestCommand } from "./testing/host.ts";
+export { closeTestHost, ensureTestHost, getTestHostInfo, runGuestCommand } from "./testing/host.ts";
 export {
   createTestSandbox,
   destroyCurrentTestSandbox,
