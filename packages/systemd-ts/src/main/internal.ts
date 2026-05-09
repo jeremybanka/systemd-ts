@@ -7,20 +7,31 @@ import type {
   AnySystemdService,
   CommandResult,
   NotifyOptions,
+  SystemdServiceSection,
   StartResult,
   SystemdServiceOptions,
   SystemdTimerOptions,
   SystemdUnit,
-  UnitSection,
   UnitValue,
 } from "./types.ts";
 import { SystemdService } from "./systemd-service.ts";
 import { SystemdTimer } from "./systemd-timer.ts";
 
-type RequiredExecKey = (typeof REQUIRED_EXEC_KEYS)[number];
+type ExecDirectiveKey = (typeof EXEC_DIRECTIVE_KEYS)[number];
 
-const REQUIRED_EXEC_KEYS = [`ExecStart`, `ExecStop`, `ExecReload`] as const;
+const EXEC_DIRECTIVE_KEYS = [
+  `ExecCondition`,
+  `ExecReload`,
+  `ExecReloadPost`,
+  `ExecStart`,
+  `ExecStartPost`,
+  `ExecStartPre`,
+  `ExecStop`,
+  `ExecStopPost`,
+] as const;
 const execFileAsync = promisify(execFile);
+type SectionLike = object;
+
 export function normalizeUnitName(name: string, suffix: `.service` | `.timer`): string {
   return name.endsWith(suffix) ? name.slice(0, -suffix.length) : name;
 }
@@ -54,7 +65,7 @@ export function freezeUnitOptions<TOptions extends SystemdServiceOptions | Syste
   }) as Readonly<TOptions>;
 }
 
-export function cloneUnitSection<TSection extends UnitSection | undefined>(
+export function cloneUnitSection<TSection extends SectionLike | undefined>(
   section: TSection,
 ): TSection {
   if (section === undefined) {
@@ -72,8 +83,8 @@ export function cloneUnitSection<TSection extends UnitSection | undefined>(
   return Object.freeze(Object.fromEntries(entries)) as TSection;
 }
 
-export function validateServiceSection(service: UnitSection): void {
-  for (const key of REQUIRED_EXEC_KEYS) {
+export function validateServiceSection(service: SystemdServiceSection): void {
+  for (const key of EXEC_DIRECTIVE_KEYS) {
     assertAbsoluteExecValue(key, service[key]);
   }
 }
@@ -131,7 +142,7 @@ export function parseStartResult(unit: string, output: string): StartResult {
 }
 
 export function renderUnitFile(
-  sections: ReadonlyArray<readonly [string, UnitSection | undefined]>,
+  sections: ReadonlyArray<readonly [string, SectionLike | undefined]>,
 ): string {
   const renderedSections = sections
     .flatMap(([sectionName, section]) => {
@@ -139,7 +150,7 @@ export function renderUnitFile(
         return [];
       }
 
-      const lines = Object.entries(section).flatMap(([key, value]) => {
+      const lines = Object.entries(section as Record<string, unknown>).flatMap(([key, value]) => {
         if (value === undefined) {
           return [];
         }
@@ -148,7 +159,7 @@ export function renderUnitFile(
           return value.map((entry) => `${key}=${stringifyUnitValue(entry)}`);
         }
 
-        return `${key}=${stringifyUnitValue(value)}`;
+        return `${key}=${stringifyUnitValue(value as UnitValue)}`;
       });
 
       if (lines.length === 0) {
@@ -226,7 +237,19 @@ function hasTimerSection(
   return `timer` in options;
 }
 
-function assertAbsoluteExecValue(key: RequiredExecKey, value: UnitSection[string]): void {
+function assertAbsoluteExecValue(key: ExecDirectiveKey, value: unknown): void {
+  if (isUnitValueList(value)) {
+    for (const entry of value) {
+      assertAbsoluteExecEntry(key, entry);
+    }
+
+    return;
+  }
+
+  assertAbsoluteExecEntry(key, value as UnitValue | undefined);
+}
+
+function assertAbsoluteExecEntry(key: ExecDirectiveKey, value: UnitValue | undefined): void {
   if (typeof value === `string` && value.length > 0 && !value.startsWith(`/`)) {
     throw new Error(`${key} must use an absolute executable path for systemd`);
   }
@@ -248,7 +271,7 @@ function stringifyUnitValue(value: UnitValue): string {
   return String(value);
 }
 
-function isUnitValueList(value: UnitSection[string]): value is readonly UnitValue[] {
+function isUnitValueList(value: unknown): value is readonly UnitValue[] {
   return Array.isArray(value);
 }
 

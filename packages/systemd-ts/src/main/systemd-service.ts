@@ -5,7 +5,12 @@ import {
   renderUnitFile,
   validateServiceSection,
 } from "./internal.ts";
-import type { ServiceBaseName, ServiceFilename, SystemdServiceOptions } from "./types.ts";
+import type {
+  ExactSystemdServiceOptions,
+  ServiceBaseName,
+  ServiceFilename,
+  SystemdServiceOptions,
+} from "./types.ts";
 
 export class SystemdService<const TOptions extends SystemdServiceOptions = SystemdServiceOptions> {
   public readonly install: TOptions[`install`] | undefined;
@@ -14,8 +19,8 @@ export class SystemdService<const TOptions extends SystemdServiceOptions = Syste
   public readonly service: TOptions[`service`];
   public readonly unit: TOptions[`unit`] | undefined;
 
-  public constructor(options: TOptions) {
-    this.options = freezeUnitOptions(options);
+  public constructor(options: ExactSystemdServiceOptions<TOptions>) {
+    this.options = freezeUnitOptions(options as unknown as TOptions);
     this.name = normalizeUnitName(options.name, `.service`) as ServiceBaseName<TOptions[`name`]>;
     this.unit = cloneUnitSection(options.unit) as TOptions[`unit`] | undefined;
     this.service = (cloneUnitSection(options.service) ?? {}) as TOptions[`service`];
