@@ -13,13 +13,21 @@
     "pnpm-lock.yaml"
   ],
   "words": [
+    "APIVFS",
     "cgroupns",
     "Colima",
+    "Coredump",
     "dbus",
+    "Disallocate",
+    "FSIZE",
     "getent",
     "gitmoji",
     "MAINPID",
+    "MEMLOCK",
+    "MSGQUEUE",
+    "NOFILE",
     "nohup",
+    "NUMA",
     "noprofile",
     "norc",
     "oneshot",
@@ -27,12 +35,21 @@
     "Persistant", // used for a typo in a test
     "pipefail",
     "recvfrom",
+    "RTPRIO",
+    "RTTIME",
+    "SIGPENDING",
+    "SUIDSGID",
     "systemd",
     "takua",
     "tmpfs",
+    "Tunables",
+    "TTYV",
+    "TTYVT",
     "vite",
     "viteplus",
     "vitest",
-    "voidzero"
+    "voidzero",
+    "Writeback",
+    "behaviour"
   ]
 }
