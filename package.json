@@ -10,6 +10,7 @@
     "ready": "vp check && vp run -r test && vp run -r build",
     "build": "vp run -r build",
     "test": "vp run -r test",
+    "test:warm": "node --experimental-strip-types --input-type=module -e \"import { ensureTestHost, getTestHostInfo } from './packages/systemd-ts/src/testing/host.ts'; const info = await ensureTestHost(); console.log(JSON.stringify(info));\"",
     "check": "vp check",
     "check:dependencies": "pin-checker --ignore-catalog",
     "check:spelling": "cspell lint --config ./cspell.json",
