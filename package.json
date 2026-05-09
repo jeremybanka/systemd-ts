@@ -16,7 +16,6 @@
     "check:spelling": "cspell lint --config ./cspell.json",
     "dev": "vp run -r dev",
     "changeset": "changeset",
-    "version-packages": "changeset version",
     "release": "changeset publish"
   },
   "devDependencies": {
