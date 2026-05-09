@@ -6,12 +6,21 @@ settings:
 
 catalogs:
   default:
+    '@changesets/cli':
+      specifier: 2.31.0
+      version: 2.31.0
     '@types/node':
       specifier: 25.6.0
       version: 25.6.0
     '@typescript/native-preview':
       specifier: 7.0.0-dev.20260507.1
       version: 7.0.0-dev.20260507.1
+    cspell:
+      specifier: 8.19.4
+      version: 8.19.4
+    pin-dependencies-checker:
+      specifier: 2.7.1
+      version: 2.7.1
     takua:
       specifier: 0.1.1
       version: 0.1.1
@@ -31,25 +40,25 @@ importers:
   .:
     devDependencies:
       '@changesets/cli':
-        specifier: 2.31.0
+        specifier: 'catalog:'
         version: 2.31.0(@types/node@25.6.0)
       '@types/node':
-        specifier: 25.6.0
+        specifier: 'catalog:'
         version: 25.6.0
       '@typescript/native-preview':
-        specifier: 7.0.0-dev.20260507.1
+        specifier: 'catalog:'
         version: 7.0.0-dev.20260507.1
       cspell:
-        specifier: 8.19.4
+        specifier: 'catalog:'
         version: 8.19.4
       pin-dependencies-checker:
-        specifier: 2.7.1
+        specifier: 'catalog:'
         version: 2.7.1
       typescript:
-        specifier: 6.0.3
+        specifier: 'catalog:'
         version: 6.0.3
       vite-plus:
-        specifier: 0.1.20
+        specifier: 'catalog:'
         version: 0.1.20(@types/node@25.6.0)(typescript@6.0.3)(vite@8.0.11(@types/node@25.6.0)(yaml@2.8.4))(yaml@2.8.4)
 
   packages/systemd-ts:
