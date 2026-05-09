@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
+const commandMaxBufferBytes = 16 * 1024 * 1024;
 const repoRoot = fileURLToPath(new URL(`../../../../`, import.meta.url));
 const dockerfilePath = fileURLToPath(new URL(`./systemd-container.Dockerfile`, import.meta.url));
 const selectedBackendName = resolveBackendName(process.env[`SYSTEMD_TS_TEST_HOST_BACKEND`]);
@@ -200,7 +201,10 @@ class ColimaBackend implements TestHostBackend {
   }
 
   private async execColima(args: readonly string[]): Promise<string> {
-    const result = await execFileAsync(`colima`, args, { env: this.hostEnv });
+    const result = await execFileAsync(`colima`, args, {
+      env: this.hostEnv,
+      maxBuffer: commandMaxBufferBytes,
+    });
     return mergeOutput(result.stdout, result.stderr);
   }
 }
@@ -213,7 +217,15 @@ class DockerBackend implements TestHostBackend {
   };
 
   public async ensureHost(): Promise<void> {
-    await this.execDocker([`build`, `--tag`, dockerImage, `--file`, dockerfilePath, repoRoot]);
+    await this.execDocker([
+      `build`,
+      `--quiet`,
+      `--tag`,
+      dockerImage,
+      `--file`,
+      dockerfilePath,
+      repoRoot,
+    ]);
 
     if (!(await this.isContainerRunning())) {
       await this.removeExistingContainer();
@@ -273,21 +285,25 @@ class DockerBackend implements TestHostBackend {
   }
 
   public async runIsolatedCommand(script: string): Promise<string> {
-    const result = await execFileAsync(`docker`, [
-      `exec`,
-      `--user`,
-      dockerUser,
-      `--env`,
-      `HOME=${dockerUserHome}`,
-      `--env`,
-      `XDG_RUNTIME_DIR=${dockerUserRuntimeDir}`,
-      `--env`,
-      `DBUS_SESSION_BUS_ADDRESS=unix:path=${dockerUserRuntimeDir}/bus`,
-      dockerContainer,
-      `bash`,
-      `-lc`,
-      script,
-    ]);
+    const result = await execFileAsync(
+      `docker`,
+      [
+        `exec`,
+        `--user`,
+        dockerUser,
+        `--env`,
+        `HOME=${dockerUserHome}`,
+        `--env`,
+        `XDG_RUNTIME_DIR=${dockerUserRuntimeDir}`,
+        `--env`,
+        `DBUS_SESSION_BUS_ADDRESS=unix:path=${dockerUserRuntimeDir}/bus`,
+        dockerContainer,
+        `bash`,
+        `-lc`,
+        script,
+      ],
+      { maxBuffer: commandMaxBufferBytes },
+    );
 
     return mergeOutput(result.stdout, result.stderr);
   }
@@ -329,7 +345,7 @@ class DockerBackend implements TestHostBackend {
   }
 
   private async execDocker(args: readonly string[]): Promise<string> {
-    const result = await execFileAsync(`docker`, args);
+    const result = await execFileAsync(`docker`, args, { maxBuffer: commandMaxBufferBytes });
     return mergeOutput(result.stdout, result.stderr);
   }
 }
