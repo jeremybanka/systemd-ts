@@ -1,0 +1,45 @@
+name: Lint
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    types: [opened, synchronize]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_API: ${{ secrets.TURBO_API }}
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAMID: ${{ vars.TURBO_TEAMID }}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  VitePlus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: ./.github/actions/setup
+      - run: vp check
+
+  Dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: ./.github/actions/setup
+      - run: vp run check:dependencies
+
+  Spelling:
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v6.0.2
+      - uses: ./.github/actions/setup
+      - run: vp run check:spelling

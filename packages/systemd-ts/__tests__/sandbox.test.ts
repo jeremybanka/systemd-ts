@@ -44,7 +44,7 @@ beforeEach(async (context) => {
 afterEach(async () => {
   chronicle?.mark(`afterEach:start`);
 
-  await destroyCurrentTestSandbox({ noisy: false });
+  await destroyCurrentTestSandbox();
 
   chronicle?.mark(`afterEach:sandbox-destroyed`);
   chronicle?.logMarks();

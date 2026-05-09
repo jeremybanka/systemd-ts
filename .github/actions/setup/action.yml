@@ -1,0 +1,13 @@
+name: Setup
+description: Download and install 3rd party software.
+runs:
+  using: composite
+  steps:
+    - name: Install Mise
+      uses: jdx/mise-action@v4.0.1
+      with:
+        version: 2026.5.3
+
+    - name: Install Dependencies
+      shell: bash
+      run: vp install --frozen-lockfile
