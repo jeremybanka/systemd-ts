@@ -15,7 +15,8 @@ const dockerStateRoot = process.env[`SYSTEMD_TS_TEST_HOST_ROOT`] ?? `${repoRoot}
 const dockerImage = process.env[`SYSTEMD_TS_TEST_DOCKER_IMAGE`] ?? `systemd-ts-test-host:local`;
 const dockerUser = process.env[`SYSTEMD_TS_TEST_DOCKER_USER`] ?? `runner`;
 const dockerUserId = Number(process.env[`SYSTEMD_TS_TEST_DOCKER_UID`] ?? `1000`);
-const dockerContainer = process.env[`SYSTEMD_TS_TEST_DOCKER_CONTAINER`] ?? defaultDockerContainerName();
+const dockerContainer =
+  process.env[`SYSTEMD_TS_TEST_DOCKER_CONTAINER`] ?? defaultDockerContainerName();
 const dockerUserRuntimeDir = `/run/user/${dockerUserId}`;
 const dockerUserHome = `/home/${dockerUser}`;
 
