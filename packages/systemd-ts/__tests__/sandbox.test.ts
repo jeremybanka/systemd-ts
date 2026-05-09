@@ -30,7 +30,7 @@ let chronicle: Chronicle | undefined;
 beforeAll(async () => {
   await chmod(guestExecutableFixturePath, 0o755);
   await ensureTestHost();
-});
+}, 45_000);
 
 beforeEach(async (context) => {
   chronicle = chronicleLogger.makeChronicle({ inline: false });
