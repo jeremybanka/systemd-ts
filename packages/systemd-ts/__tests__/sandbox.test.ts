@@ -12,13 +12,13 @@ import {
   SystemdTimer,
   notify,
   type CommandResult,
-} from "../src/index.ts";
-import { ensureTestHost, runGuestCommand, runIsolatedGuestCommand } from "../src/testing/host.ts";
+} from "../src/main/index.ts";
+import { ensureTestHost, runGuestCommand, runIsolatedGuestCommand } from "../src/test/host.ts";
 import {
   createTestSandbox,
   destroyCurrentTestSandbox,
   useCurrentTestSandbox,
-} from "../src/testing/sandbox.ts";
+} from "../src/test/sandbox.ts";
 
 const installTestName = `installs a user service and timer into an isolated systemd sandbox`;
 const guestExecutableFixturePath = fileURLToPath(

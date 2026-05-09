@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { Executable, Systemd, SystemdService, SystemdTimer } from "../src/index.ts";
+import { Executable, Systemd, SystemdService, SystemdTimer } from "../src/main/index.ts";
 
 const execFileAsync = promisify(execFile);
 
