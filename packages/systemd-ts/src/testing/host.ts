@@ -596,9 +596,9 @@ class GuestShell {
     };
 
     this.buffer = ``;
-    const command = `{
+    const command = `(
 ${next.script}
-} 2>&1
+) 2>&1
 status=$?
 printf '\\n${marker}:%s\\n' "$status"
 `;
