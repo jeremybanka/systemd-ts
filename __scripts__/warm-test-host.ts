@@ -1,4 +1,4 @@
-import { closeTestHost, ensureTestHost } from "../packages/systemd-ts/src/testing/host.ts";
+import { closeTestHost, ensureTestHost } from "../packages/systemd-ts/src/test/host.ts";
 
 const info = await ensureTestHost();
 closeTestHost();
