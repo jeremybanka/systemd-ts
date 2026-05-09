@@ -20,7 +20,7 @@ export async function createTestSandbox(testName?: string): Promise<TestSandbox>
   const id = randomUUID().slice(0, 8);
   const slug = slugify(testName ?? `sandbox`);
   const namePrefix = `systemd-ts-${slug}-${id}`;
-  const rootDir = `${getTestHostInfo().repoRoot}.colima/tests/${namePrefix}`;
+  const rootDir = `${getTestHostInfo().stateRoot}/tests/${namePrefix}`;
   const linkedUnitDir = `${rootDir}/linked-units`;
   const workDir = `${rootDir}/work`;
 
