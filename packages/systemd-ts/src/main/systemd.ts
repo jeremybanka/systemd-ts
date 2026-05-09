@@ -21,8 +21,16 @@ import type {
   ValidInstallUnits,
 } from "./types.ts";
 
+/**
+ * The result of installing one or more units with {@link Systemd.install}.
+ *
+ * It records the installation directory and the on-disk path associated with
+ * each installed unit.
+ */
 export class SystemdInstallResult<TUnits extends readonly SystemdUnit[] = readonly SystemdUnit[]> {
+  /** The directory units were written into. */
   public readonly directory: string;
+  /** The installed units together with their resolved on-disk paths. */
   public readonly installed: readonly InstalledUnit<TUnits[number]>[];
   private readonly pathByFilename: ReadonlyMap<string, string>;
 
@@ -33,6 +41,7 @@ export class SystemdInstallResult<TUnits extends readonly SystemdUnit[] = readon
     Object.freeze(this);
   }
 
+  /** Returns the installed on-disk path for a previously installed unit. */
   public pathFor(unit: TUnits[number]): string {
     const path = this.pathByFilename.get(unit.filename);
     if (path === undefined) {
@@ -43,12 +52,33 @@ export class SystemdInstallResult<TUnits extends readonly SystemdUnit[] = readon
   }
 }
 
+/**
+ * A configured interface to a specific systemd environment.
+ *
+ * `Systemd` combines unit-file materialization with a command execution
+ * strategy. It knows which scope it is targeting, where unit files should be
+ * written, and how `systemctl` should be invoked.
+ *
+ * This abstraction is intentionally close to `systemctl` concepts while still
+ * accepting full unit definitions instead of loose unit-name strings.
+ */
 export class Systemd {
+  /** Command executor used for `systemctl` and related subprocess calls. */
   public readonly executor: CommandExecutor;
+  /** Whether units should be linked into systemd before manager operations. */
   public readonly linkUnits: boolean;
+  /** The target manager scope, either `system` or `user`. */
   public readonly scope: `system` | `user`;
+  /** The directory used when materializing unit files. */
   public readonly unitDir: string;
 
+  /**
+   * Creates a configured `Systemd` facade.
+   *
+   * By default, this targets the system scope and `/etc/systemd/system`. Use
+   * `scope: "user"` or an explicit `unitDir` to target a different manager or
+   * unit-file location.
+   */
   public constructor(options: SystemdOptions = {}) {
     this.scope = options.scope ?? `system`;
     this.unitDir = options.unitDir ?? defaultUnitDirForScope(this.scope);
@@ -57,6 +87,14 @@ export class Systemd {
     Object.freeze(this);
   }
 
+  /**
+   * Renders and writes one or more units into this instance's `unitDir`.
+   *
+   * This is intentionally a file-materialization step. It does not enable or
+   * start the units on its own. When both timers and services are installed
+   * together, compile-time and runtime attachment checks ensure the timer points
+   * at one of the accompanying services.
+   */
   public async install<const TUnits extends readonly SystemdUnit[]>(
     ...units: TUnits & ValidInstallUnits<TUnits>
   ): Promise<SystemdInstallResult<TUnits>> {
@@ -77,6 +115,13 @@ export class Systemd {
     return new SystemdInstallResult<TUnits>(this.unitDir, installed);
   }
 
+  /**
+   * Enables one or more units via `systemctl enable`.
+   *
+   * When `linkUnits` is enabled, this first links installed unit files into the
+   * target manager and reloads systemd so the units are visible before the
+   * enable operation runs.
+   */
   public async enable(...units: readonly SystemdUnit[]): Promise<void> {
     if (units.length === 0) {
       throw new Error(`Systemd.enable() requires at least one service or timer`);
@@ -90,6 +135,13 @@ export class Systemd {
     }
   }
 
+  /**
+   * Starts a unit and returns a parsed `systemctl show` snapshot of its final
+   * observed state.
+   *
+   * For oneshot services, a successful result commonly means `ActiveState` is
+   * already back to `inactive` by the time the status snapshot is collected.
+   */
   public async start(unit: SystemdUnit): Promise<StartResult> {
     const scopeArgs = this.scopeArgs();
     await this.prepareUnits(scopeArgs, [unit]);
@@ -105,6 +157,13 @@ export class Systemd {
     return parseStartResult(unit.filename, status.stdout);
   }
 
+  /**
+   * Reads recent output for a managed unit.
+   *
+   * If the unit is configured with file-backed `StandardOutput` or
+   * `StandardError`, this reads directly from that file. Otherwise it falls back
+   * to `systemctl status --lines ...`.
+   */
   public async logs(unit: SystemdUnit, options?: LogsOptions): Promise<string> {
     const fileLogPath = resolveUnitLogPath(unit);
     if (fileLogPath !== undefined) {
@@ -130,6 +189,7 @@ export class Systemd {
     return logs.stdout;
   }
 
+  /** Returns the on-disk unit-file path this instance uses for the given unit. */
   public pathFor(unit: SystemdUnit): string {
     return join(this.unitDir, unit.filename);
   }
@@ -172,6 +232,12 @@ export class Systemd {
 
 let lazyDefaultSystemd: Systemd | undefined;
 
+/**
+ * Returns the lazily created default `Systemd` instance.
+ *
+ * The default instance uses the library defaults for scope, unit directory, and
+ * command execution.
+ */
 export function defaultSystemd(): Systemd {
   lazyDefaultSystemd ??= new Systemd();
   return lazyDefaultSystemd;
