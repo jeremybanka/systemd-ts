@@ -348,25 +348,7 @@ class DockerBackend implements TestHostBackend {
 
   public async runIsolatedCommand(script: string): Promise<string> {
     const runtimeInfo = this.requireRuntimeInfo();
-    const result = await execFileAsync(
-      `docker`,
-      [
-        `exec`,
-        `--user`,
-        dockerUser,
-        `--env`,
-        `HOME=${runtimeInfo.home}`,
-        `--env`,
-        `XDG_RUNTIME_DIR=${runtimeInfo.runtimeDir}`,
-        `--env`,
-        `DBUS_SESSION_BUS_ADDRESS=unix:path=${runtimeInfo.runtimeDir}/bus`,
-        dockerContainer,
-        `bash`,
-        `-lc`,
-        script,
-      ],
-      { maxBuffer: commandMaxBufferBytes },
-    );
+    const result = await this.execDockerAsUser(runtimeInfo, [`bash`, `-lc`, script]);
 
     return mergeOutput(result.stdout, result.stderr);
   }
@@ -406,12 +388,18 @@ class DockerBackend implements TestHostBackend {
         `-lc`,
         [
           `mkdir -p ${shellQuote(dockerStateRoot)}`,
+          `chown ${runtimeInfo.userId}:${runtimeInfo.userId} ${shellQuote(dockerStateRoot)}`,
           `loginctl enable-linger ${shellQuote(dockerUser)}`,
           `systemctl start user@${runtimeInfo.userId}.service`,
         ].join(`\n`),
       ],
       { timeout: dockerExecTimeoutMs },
     );
+    await this.execDockerAsUser(runtimeInfo, [
+      `bash`,
+      `-lc`,
+      `mkdir -p ${shellQuote(`${dockerStateRoot}/tests`)}`,
+    ]);
     logTestHost(`User session started for ${dockerUser}`);
   }
 
@@ -426,6 +414,33 @@ class DockerBackend implements TestHostBackend {
       timeout: options?.timeout,
     });
     return mergeOutput(result.stdout, result.stderr);
+  }
+
+  private execDockerAsUser(
+    runtimeInfo: {
+      readonly home: string;
+      readonly runtimeDir: string;
+      readonly userId: number;
+    },
+    command: readonly string[],
+  ) {
+    return execFileAsync(
+      `docker`,
+      [
+        `exec`,
+        `--user`,
+        dockerUser,
+        `--env`,
+        `HOME=${runtimeInfo.home}`,
+        `--env`,
+        `XDG_RUNTIME_DIR=${runtimeInfo.runtimeDir}`,
+        `--env`,
+        `DBUS_SESSION_BUS_ADDRESS=unix:path=${runtimeInfo.runtimeDir}/bus`,
+        dockerContainer,
+        ...command,
+      ],
+      { maxBuffer: commandMaxBufferBytes },
+    );
   }
 
   private requireRuntimeInfo(): {
