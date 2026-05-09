@@ -250,7 +250,7 @@ function assertAbsoluteExecValue(key: ExecDirectiveKey, value: unknown): void {
 }
 
 function assertAbsoluteExecEntry(key: ExecDirectiveKey, value: UnitValue | undefined): void {
-  if (typeof value === `string` && value.length > 0 && !value.startsWith(`/`)) {
+  if (typeof value === `string` && value.length > 0 && !isAbsoluteExecCommand(value)) {
     throw new Error(`${key} must use an absolute executable path for systemd`);
   }
 
@@ -273,6 +273,43 @@ function stringifyUnitValue(value: UnitValue): string {
 
 function isUnitValueList(value: unknown): value is readonly UnitValue[] {
   return Array.isArray(value);
+}
+
+function isAbsoluteExecCommand(value: string): boolean {
+  let index = 0;
+  let hasPrivilegePrefix = false;
+
+  while (index < value.length) {
+    const prefix = value[index];
+    if (prefix === `@` || prefix === `-` || prefix === `:`) {
+      index += 1;
+      continue;
+    }
+
+    if (prefix === `+`) {
+      if (hasPrivilegePrefix) {
+        return false;
+      }
+
+      hasPrivilegePrefix = true;
+      index += 1;
+      continue;
+    }
+
+    if (prefix === `!`) {
+      if (hasPrivilegePrefix) {
+        return false;
+      }
+
+      hasPrivilegePrefix = true;
+      index += value[index + 1] === `!` ? 2 : 1;
+      continue;
+    }
+
+    break;
+  }
+
+  return value[index] === `/`;
 }
 
 function buildNotifyShellCommand(args: readonly string[], socketPath: string | undefined): string {

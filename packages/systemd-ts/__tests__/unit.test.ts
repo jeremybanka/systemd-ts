@@ -100,6 +100,23 @@ describe(`systemd-ts unit`, () => {
     expect(() => service.render()).toThrow(/absolute executable path/u);
   });
 
+  test(`accepts absolute exec paths with documented systemd prefixes`, () => {
+    const service = new SystemdService({
+      name: `prefixed-service`,
+      service: {
+        ExecCondition: `-/usr/bin/test -f /etc/prefixed-service.conf`,
+        ExecReload: `@/usr/bin/env custom-argv0 node /srv/app/reload.mjs`,
+        ExecStart: `!!:/usr/bin/env node /srv/app/start.mjs`,
+        ExecStartPre: `-!@/usr/bin/printf preparing`,
+        ExecStop: `+:@/usr/bin/env node /srv/app/stop.mjs`,
+      },
+    });
+
+    expect(() => service.render()).not.toThrow();
+    expect(service.render()).toContain(`ExecStart=!!:/usr/bin/env node /srv/app/start.mjs`);
+    expect(service.render()).toContain(`ExecStartPre=-!@/usr/bin/printf preparing`);
+  });
+
   test(`defaults system scope to the canonical unit directory`, () => {
     expect(new Systemd().unitDir).toBe(`/etc/systemd/system`);
   });
