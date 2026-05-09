@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 
-
 import { getTestHostInfo, runGuestCommand } from "./host.ts";
 
 export interface TestSandbox {
@@ -42,8 +41,7 @@ mkdir -p ${shellQuote(linkedUnitDir)} ${shellQuote(workDir)}`,
   return currentSandbox;
 }
 
-export async function destroyCurrentTestSandbox(
-): Promise<void> {
+export async function destroyCurrentTestSandbox(): Promise<void> {
   if (currentSandbox === undefined) {
     return;
   }
@@ -73,8 +71,6 @@ export async function destroyCurrentTestSandbox(
   await runGuestCommand(`systemctl --user daemon-reload || true`);
 
   await runGuestCommand(`rm -rf ${shellQuote(sandbox.rootDir)}`);
-
-
 }
 
 export function useCurrentTestSandbox(): TestSandbox {
