@@ -27,3 +27,10 @@ export type {
   UnitValue,
   ValidInstallUnits,
 } from "./types.ts";
+
+import * as I from "./internal.ts";
+/**
+ * Internal helpers are exposed for advanced use, but they are not a stable public API.
+ * Expect breaking changes here outside the package's normal compatibility guarantees.
+ */
+export const Internal: typeof I = I;
