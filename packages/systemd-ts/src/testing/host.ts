@@ -6,6 +6,8 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 const commandMaxBufferBytes = 16 * 1024 * 1024;
+const dockerBuildTimeoutMs = 5 * 60 * 1_000;
+const dockerExecTimeoutMs = 60 * 1_000;
 const repoRoot = fileURLToPath(new URL(`../../../../`, import.meta.url));
 const dockerfilePath = fileURLToPath(new URL(`./systemd-container.Dockerfile`, import.meta.url));
 const selectedBackendName = resolveBackendName(process.env[`SYSTEMD_TS_TEST_HOST_BACKEND`]);
@@ -59,8 +61,11 @@ export async function runIsolatedGuestCommand(script: string): Promise<string> {
 }
 
 async function ensureTestHostInner(): Promise<TestHostInfo> {
+  logTestHost(`Ensuring ${backend.info.backend} test host`);
   await backend.ensureHost();
+  logTestHost(`Waiting for systemd --user readiness`);
   await waitForUserSystemd();
+  logTestHost(`Test host ready`);
   return getTestHostInfo();
 }
 
@@ -75,7 +80,16 @@ async function waitForUserSystemd(): Promise<void> {
       state.includes(`xdg=/run/user/`) &&
       [`running`, `degraded`].some((status) => state.includes(status))
     ) {
+      logTestHost(
+        `systemd --user ready after ${attempt + 1} attempt${attempt === 0 ? `` : `s`}: ${summarizeSystemdState(state)}`,
+      );
       return;
+    }
+
+    if (attempt === 0 || (attempt + 1) % 5 === 0) {
+      logTestHost(
+        `systemd --user not ready yet (${attempt + 1}/30): ${summarizeSystemdState(state)}`,
+      );
     }
 
     await delay(1_000);
@@ -98,6 +112,14 @@ function getGuestShell(): GuestShell {
 
 function mergeOutput(stdout: string, stderr: string): string {
   return [stdout, stderr].filter((output) => output.length > 0).join(`\n`);
+}
+
+function summarizeSystemdState(state: string): string {
+  return state
+    .split(`\n`)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0)
+    .join(`; `);
 }
 
 function inferBackendName(): TestHostBackendName {
@@ -131,6 +153,10 @@ function resolveBackendName(value: string | undefined): TestHostBackendName {
 function defaultDockerContainerName(): string {
   const digest = createHash(`sha256`).update(repoRoot).digest(`hex`).slice(0, 12);
   return `systemd-ts-${digest}`;
+}
+
+function logTestHost(message: string): void {
+  console.info(`[systemd-ts:test-host] ${message}`);
 }
 
 function createBackend(name: TestHostBackendName): TestHostBackend {
@@ -223,19 +249,16 @@ class DockerBackend implements TestHostBackend {
     | undefined;
 
   public async ensureHost(): Promise<void> {
-    await this.execDocker([
-      `build`,
-      `--quiet`,
-      `--tag`,
-      dockerImage,
-      `--file`,
-      dockerfilePath,
-      repoRoot,
-    ]);
+    logTestHost(`Building Docker test host image ${dockerImage}`);
+    await this.execDocker(
+      [`build`, `--quiet`, `--tag`, dockerImage, `--file`, dockerfilePath, repoRoot],
+      { timeout: dockerBuildTimeoutMs },
+    );
+    logTestHost(`Docker test host image ready`);
 
     if (!(await this.isContainerRunning())) {
       await this.removeExistingContainer();
-      console.info(`Starting repo-local Docker systemd host for integration tests...`);
+      logTestHost(`Starting Docker test host container ${dockerContainer}`);
       await this.execDocker([
         `run`,
         `--detach`,
@@ -259,6 +282,9 @@ class DockerBackend implements TestHostBackend {
         repoRoot,
         dockerImage,
       ]);
+      logTestHost(`Docker test host container started`);
+    } else {
+      logTestHost(`Reusing running Docker test host container ${dockerContainer}`);
     }
 
     await this.ensureUserSession();
@@ -340,21 +366,36 @@ class DockerBackend implements TestHostBackend {
 
   private async ensureUserSession(): Promise<void> {
     const runtimeInfo = await this.resolveRuntimeInfo();
-    await this.execDocker([
-      `exec`,
-      dockerContainer,
-      `bash`,
-      `-lc`,
+    logTestHost(
+      `Ensuring user session for ${dockerUser} (uid=${runtimeInfo.userId}, home=${runtimeInfo.home})`,
+    );
+    await this.execDocker(
       [
-        `mkdir -p ${shellQuote(dockerStateRoot)}`,
-        `loginctl enable-linger ${shellQuote(dockerUser)}`,
-        `systemctl start user@${runtimeInfo.userId}.service`,
-      ].join(`\n`),
-    ]);
+        `exec`,
+        dockerContainer,
+        `bash`,
+        `-lc`,
+        [
+          `mkdir -p ${shellQuote(dockerStateRoot)}`,
+          `loginctl enable-linger ${shellQuote(dockerUser)}`,
+          `systemctl start user@${runtimeInfo.userId}.service`,
+        ].join(`\n`),
+      ],
+      { timeout: dockerExecTimeoutMs },
+    );
+    logTestHost(`User session started for ${dockerUser}`);
   }
 
-  private async execDocker(args: readonly string[]): Promise<string> {
-    const result = await execFileAsync(`docker`, args, { maxBuffer: commandMaxBufferBytes });
+  private async execDocker(
+    args: readonly string[],
+    options?: {
+      readonly timeout?: number;
+    },
+  ): Promise<string> {
+    const result = await execFileAsync(`docker`, args, {
+      maxBuffer: commandMaxBufferBytes,
+      timeout: options?.timeout,
+    });
     return mergeOutput(result.stdout, result.stderr);
   }
 
@@ -395,6 +436,7 @@ class DockerBackend implements TestHostBackend {
   }
 
   private async lookupUserHome(): Promise<string> {
+    logTestHost(`Resolving home directory for Docker test user ${dockerUser}`);
     const output = await this.execDocker([
       `exec`,
       dockerContainer,
@@ -408,10 +450,12 @@ class DockerBackend implements TestHostBackend {
       throw new Error(`Could not resolve home directory for Docker test user ${dockerUser}`);
     }
 
+    logTestHost(`Resolved home directory for ${dockerUser}: ${home}`);
     return home;
   }
 
   private async lookupUserId(): Promise<number> {
+    logTestHost(`Resolving uid for Docker test user ${dockerUser}`);
     const output = await this.execDocker([
       `exec`,
       dockerContainer,
@@ -425,6 +469,7 @@ class DockerBackend implements TestHostBackend {
       throw new Error(`Could not resolve uid for Docker test user ${dockerUser}`);
     }
 
+    logTestHost(`Resolved uid for ${dockerUser}: ${parsed}`);
     return parsed;
   }
 }
