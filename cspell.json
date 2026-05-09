@@ -1,14 +1,7 @@
 {
   "version": "0.2",
   "language": "en",
-  "files": [
-    "**/*.md",
-    "**/*.json",
-    "**/*.yml",
-    "**/*.yaml",
-    "**/*.ts",
-    "**/*.mts"
-  ],
+  "files": ["**/*.md", "**/*.json", "**/*.yml", "**/*.yaml", "**/*.ts", "**/*.mts"],
   "ignorePaths": [
     ".git",
     ".colima",
