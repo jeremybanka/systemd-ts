@@ -52,6 +52,10 @@ export function ensureTestHost(): Promise<TestHostInfo> {
   return ensuredHost;
 }
 
+export function closeTestHost(): void {
+  closeGuestShell(`warmup complete`);
+}
+
 export async function runGuestCommand(script: string): Promise<string> {
   const shell = getGuestShell();
   return shell.run(script);
