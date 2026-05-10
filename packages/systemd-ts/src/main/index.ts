@@ -13,19 +13,20 @@ export { Executable, defineExecutable } from "./executable.ts";
 export { notify } from "./notify.ts";
 export { SystemdService } from "./systemd-service.ts";
 export { SystemdTimer } from "./systemd-timer.ts";
-export { Systemd, SystemdMaterializeResult, defaultSystemd } from "./systemd.ts";
+export { Systemd, SystemdMaterialization, defaultSystemd } from "./systemd.ts";
+export type { Result } from "./internal.ts";
 export type {
   AnySystemdService,
   AnySystemdTimer,
   CommandExecutor,
-  CommandResult,
+  CommandOutput,
   ExecutableOptions,
   MaterializedUnit,
   LogsOptions,
   NotifyOptions,
   ServiceBaseName,
   ServiceFilename,
-  StartResult,
+  StartStatus,
   SystemdOptions,
   SystemdServiceOptions,
   SystemdTimerOptions,

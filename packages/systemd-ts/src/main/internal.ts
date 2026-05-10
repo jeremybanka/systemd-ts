@@ -2,21 +2,27 @@ import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
 import { promisify } from "node:util";
 
-import {
-  InvalidExecDirectiveError,
-  NotifySendError,
-} from "./errors.ts";
+import { InvalidExecDirectiveError, NotifySendError } from "./errors.ts";
 import { Executable } from "./executable.ts";
 import type {
-  CommandResult,
+  CommandOutput,
   NotifyOptions,
   SystemdServiceSection,
-  StartResult,
+  StartStatus,
   SystemdServiceOptions,
   SystemdTimerOptions,
-  SystemdUnit,
   UnitValue,
 } from "./types.ts";
+
+export type Result<TValue, TError> =
+  | {
+      readonly ok: true;
+      readonly value: TValue;
+    }
+  | {
+      readonly ok: false;
+      readonly error: TError;
+    };
 
 type ExecDirectiveKey = (typeof EXEC_DIRECTIVE_KEYS)[number];
 
@@ -90,7 +96,7 @@ export function validateServiceSection(service: SystemdServiceSection): void {
   }
 }
 
-export function parseStartResult(unit: string, output: string): StartResult {
+export function parseStartStatus(unit: string, output: string): StartStatus {
   const properties = Object.fromEntries(
     output
       .split(`\n`)
@@ -157,7 +163,7 @@ export function shellQuote(value: string): string {
 export async function defaultCommandExecutor(
   command: string,
   args: readonly string[],
-): Promise<CommandResult> {
+): Promise<CommandOutput> {
   const result = await execFileAsync(command, [...args]);
   return {
     stderr: result.stderr,
@@ -191,12 +197,15 @@ export async function sendNotify(
     try {
       await options.executor(`bash`, [`-lc`, command]);
     } catch (cause) {
-      throw new NotifySendError(`Failed to send systemd notification through the configured executor`, {
-        args: [`-lc`, command],
-        cause,
-        command: `bash`,
-        stage: `executor`,
-      });
+      throw new NotifySendError(
+        `Failed to send systemd notification through the configured executor`,
+        {
+          args: [`-lc`, command],
+          cause,
+          command: `bash`,
+          stage: `executor`,
+        },
+      );
     }
     return;
   }

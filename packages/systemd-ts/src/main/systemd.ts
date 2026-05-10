@@ -5,11 +5,13 @@ import {
   defaultCommandExecutor,
   defaultUnitDirForScope,
   fileExists,
-  parseStartResult,
+  parseStartStatus,
   shellQuote,
+  type Result,
 } from "./internal.ts";
 import {
   NoUnitsProvidedError,
+  InvalidExecDirectiveError,
   UnitEnableError,
   UnitLogsReadError,
   UnitMaterializationError,
@@ -21,19 +23,19 @@ import type {
   CommandExecutor,
   MaterializedUnit,
   LogsOptions,
-  StartResult,
+  StartStatus,
   SystemdOptions,
   SystemdUnit,
   ValidInstallUnits,
 } from "./types.ts";
 
 /**
- * The result of materializing one or more units with {@link Systemd.materialize}.
+ * A successful systemd unit materialization.
  *
  * It records the target directory and the on-disk path associated with each
  * materialized unit.
  */
-export class SystemdMaterializeResult<
+export class SystemdMaterialization<
   TUnits extends readonly SystemdUnit[] = readonly SystemdUnit[],
 > {
   /** The directory units were written into. */
@@ -91,7 +93,12 @@ export class Systemd {
    */
   public async materialize<const TUnits extends readonly SystemdUnit[]>(
     ...units: TUnits & ValidInstallUnits<TUnits>
-  ): Promise<SystemdMaterializeResult<TUnits>> {
+  ): Promise<
+    Result<
+      SystemdMaterialization<TUnits>,
+      InvalidExecDirectiveError | NoUnitsProvidedError | UnitMaterializationError
+    >
+  > {
     return this.materializeUnits(units);
   }
 
@@ -102,9 +109,11 @@ export class Systemd {
    * target manager and reloads systemd so the units are visible before the
    * enable operation runs.
    */
-  public async enable(...units: readonly SystemdUnit[]): Promise<void> {
+  public async enable(
+    ...units: readonly SystemdUnit[]
+  ): Promise<Result<void, NoUnitsProvidedError | UnitEnableError>> {
     if (units.length === 0) {
-      throw new NoUnitsProvidedError(`Systemd.enable()`);
+      return err(new NoUnitsProvidedError(`Systemd.enable()`));
     }
 
     const scopeArgs = this.scopeArgs();
@@ -112,14 +121,16 @@ export class Systemd {
       await this.prepareUnits(scopeArgs, units, `enable`);
     } catch (cause) {
       if (cause instanceof UnitEnableError) {
-        throw cause;
+        return err(cause);
       }
 
-      throw new UnitEnableError(`Failed to prepare units for enable`, {
-        cause,
-        stage: `prepare`,
-        unitName: units[0]?.filename,
-      });
+      return err(
+        new UnitEnableError(`Failed to prepare units for enable`, {
+          cause,
+          stage: `prepare`,
+          unitName: units[0]?.filename,
+        }),
+      );
     }
 
     for (const unit of units) {
@@ -127,15 +138,19 @@ export class Systemd {
       try {
         await this.executor(`systemctl`, args);
       } catch (cause) {
-        throw new UnitEnableError(`Failed to enable ${unit.filename}`, {
-          args,
-          cause,
-          command: `systemctl`,
-          stage: `enable`,
-          unitName: unit.filename,
-        });
+        return err(
+          new UnitEnableError(`Failed to enable ${unit.filename}`, {
+            args,
+            cause,
+            command: `systemctl`,
+            stage: `enable`,
+            unitName: unit.filename,
+          }),
+        );
       }
     }
+
+    return ok(undefined);
   }
 
   /**
@@ -145,33 +160,37 @@ export class Systemd {
    * For oneshot services, a successful result commonly means `ActiveState` is
    * already back to `inactive` by the time the status snapshot is collected.
    */
-  public async start(unit: SystemdUnit): Promise<StartResult> {
+  public async start(unit: SystemdUnit): Promise<Result<StartStatus, UnitStartError>> {
     const scopeArgs = this.scopeArgs();
     try {
       await this.prepareUnits(scopeArgs, [unit], `start`);
     } catch (cause) {
       if (cause instanceof UnitStartError) {
-        throw cause;
+        return err(cause);
       }
 
-      throw new UnitStartError(`Failed to prepare ${unit.filename} for start`, {
-        cause,
-        stage: `prepare`,
-        unitName: unit.filename,
-      });
+      return err(
+        new UnitStartError(`Failed to prepare ${unit.filename} for start`, {
+          cause,
+          stage: `prepare`,
+          unitName: unit.filename,
+        }),
+      );
     }
 
     const startArgs = [...scopeArgs, `start`, unit.filename] as const;
     try {
       await this.executor(`systemctl`, startArgs);
     } catch (cause) {
-      throw new UnitStartError(`Failed to start ${unit.filename}`, {
-        args: startArgs,
-        cause,
-        command: `systemctl`,
-        stage: `start`,
-        unitName: unit.filename,
-      });
+      return err(
+        new UnitStartError(`Failed to start ${unit.filename}`, {
+          args: startArgs,
+          cause,
+          command: `systemctl`,
+          stage: `start`,
+          unitName: unit.filename,
+        }),
+      );
     }
 
     const statusArgs = [
@@ -184,16 +203,18 @@ export class Systemd {
     try {
       status = await this.executor(`systemctl`, statusArgs);
     } catch (cause) {
-      throw new UnitStartError(`Started ${unit.filename} but failed to query its status`, {
-        args: statusArgs,
-        cause,
-        command: `systemctl`,
-        stage: `show-status`,
-        unitName: unit.filename,
-      });
+      return err(
+        new UnitStartError(`Started ${unit.filename} but failed to query its status`, {
+          args: statusArgs,
+          cause,
+          command: `systemctl`,
+          stage: `show-status`,
+          unitName: unit.filename,
+        }),
+      );
     }
 
-    return parseStartResult(unit.filename, status.stdout);
+    return ok(parseStartStatus(unit.filename, status.stdout));
   }
 
   /**
@@ -203,19 +224,24 @@ export class Systemd {
    * `StandardError`, this reads directly from that file. Otherwise it falls back
    * to `systemctl status --lines ...`.
    */
-  public async logs(unit: SystemdUnit, options?: LogsOptions): Promise<string> {
+  public async logs(
+    unit: SystemdUnit,
+    options?: LogsOptions,
+  ): Promise<Result<string, UnitLogsReadError>> {
     const fileLogPath = resolveUnitLogPath(unit);
     if (fileLogPath !== undefined) {
       try {
         const output = await readFile(fileLogPath, `utf8`);
-        return tailLines(output, options?.lines ?? 50);
+        return ok(tailLines(output, options?.lines ?? 50));
       } catch (cause) {
-        throw new UnitLogsReadError(`Failed to read logs for ${unit.filename} from ${fileLogPath}`, {
-          cause,
-          stage: `read-log-file`,
-          unitName: unit.filename,
-          unitPath: fileLogPath,
-        });
+        return err(
+          new UnitLogsReadError(`Failed to read logs for ${unit.filename} from ${fileLogPath}`, {
+            cause,
+            stage: `read-log-file`,
+            unitName: unit.filename,
+            unitPath: fileLogPath,
+          }),
+        );
       }
     }
 
@@ -237,16 +263,18 @@ export class Systemd {
     try {
       logs = await this.executor(`bash`, args);
     } catch (cause) {
-      throw new UnitLogsReadError(`Failed to query logs for ${unit.filename} from systemctl status`, {
-        args,
-        cause,
-        command: `bash`,
-        stage: `status`,
-        unitName: unit.filename,
-      });
+      return err(
+        new UnitLogsReadError(`Failed to query logs for ${unit.filename} from systemctl status`, {
+          args,
+          cause,
+          command: `bash`,
+          stage: `status`,
+          unitName: unit.filename,
+        }),
+      );
     }
 
-    return logs.stdout;
+    return ok(logs.stdout);
   }
 
   /** Returns the on-disk unit-file path this instance uses for the given unit. */
@@ -330,19 +358,26 @@ export class Systemd {
 
   private async materializeUnits<const TUnits extends readonly SystemdUnit[]>(
     units: TUnits & ValidInstallUnits<TUnits>,
-  ): Promise<SystemdMaterializeResult<TUnits>> {
+  ): Promise<
+    Result<
+      SystemdMaterialization<TUnits>,
+      InvalidExecDirectiveError | NoUnitsProvidedError | UnitMaterializationError
+    >
+  > {
     if (units.length === 0) {
-      throw new NoUnitsProvidedError(`Systemd.materialize()`);
+      return err(new NoUnitsProvidedError(`Systemd.materialize()`));
     }
 
     try {
       await writeUnitDirectory(this.unitDir);
     } catch (cause) {
-      throw new UnitMaterializationError(`Failed to create unit directory ${this.unitDir}`, {
-        cause,
-        operation: `create-directory`,
-        unitPath: this.unitDir,
-      });
+      return err(
+        new UnitMaterializationError(`Failed to create unit directory ${this.unitDir}`, {
+          cause,
+          operation: `create-directory`,
+          unitPath: this.unitDir,
+        }),
+      );
     }
 
     const materialized: MaterializedUnit<TUnits[number]>[] = [];
@@ -351,18 +386,32 @@ export class Systemd {
       try {
         await writeFile(path, unit.render(), `utf8`);
       } catch (cause) {
-        throw new UnitMaterializationError(`Failed to materialize ${unit.filename} into ${path}`, {
-          cause,
-          operation: `write-file`,
-          unitName: unit.filename,
-          unitPath: path,
-        });
+        if (cause instanceof InvalidExecDirectiveError) {
+          return err(cause);
+        }
+
+        return err(
+          new UnitMaterializationError(`Failed to materialize ${unit.filename} into ${path}`, {
+            cause,
+            operation: `write-file`,
+            unitName: unit.filename,
+            unitPath: path,
+          }),
+        );
       }
       materialized.push({ path, unit });
     }
 
-    return new SystemdMaterializeResult<TUnits>(this.unitDir, materialized);
+    return ok(new SystemdMaterialization<TUnits>(this.unitDir, materialized));
   }
+}
+
+function ok<TValue>(value: TValue): Result<TValue, never> {
+  return { ok: true, value };
+}
+
+function err<TError>(error: TError): Result<never, TError> {
+  return { ok: false, error };
 }
 
 let lazyDefaultSystemd: Systemd | undefined;

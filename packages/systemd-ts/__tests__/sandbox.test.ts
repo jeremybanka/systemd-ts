@@ -13,7 +13,7 @@ import {
   UnitLogsReadError,
   UnitStartError,
   notify,
-  type CommandResult,
+  type CommandOutput,
 } from "../src/main/index.ts";
 import { ensureTestHost, runGuestCommand, runIsolatedGuestCommand } from "../src/test/host.ts";
 import {
@@ -87,8 +87,12 @@ describe(`systemd-ts sandbox`, () => {
 
     const result = await systemd.materialize(service, timer);
     chronicle?.mark(`test:materialize-finished`);
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw result.error;
+    }
 
-    expect(result.directory).toBe(sandbox.linkedUnitDir);
+    expect(result.value.directory).toBe(sandbox.linkedUnitDir);
     const servicePath = systemd.pathFor(service);
     const timerPath = systemd.pathFor(timer);
     expect(servicePath).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.service`);
@@ -101,8 +105,8 @@ describe(`systemd-ts sandbox`, () => {
     chronicle?.mark(`test:guest-path-check-finished`);
     expect(guestFiles).toContain(`ok`);
 
-    expect(result.materialized).toContainEqual({ path: servicePath, unit: service });
-    expect(result.materialized).toContainEqual({ path: timerPath, unit: timer });
+    expect(result.value.materialized).toContainEqual({ path: servicePath, unit: service });
+    expect(result.value.materialized).toContainEqual({ path: timerPath, unit: timer });
 
     const materializedService = await readFile(servicePath, `utf8`);
     const materializedTimer = await readFile(timerPath, `utf8`);
@@ -135,8 +139,10 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    await systemd.materialize(timer);
-    await systemd.enable(timer);
+    const materialized = await systemd.materialize(timer);
+    expect(materialized.ok).toBe(true);
+    const enabled = await systemd.enable(timer);
+    expect(enabled).toEqual({ ok: true, value: undefined });
 
     const systemdStatus = await runGuestCommand(
       `systemctl --user is-enabled ${shellQuote(timer.filename)}`,
@@ -160,11 +166,14 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    await expect(systemd.start(service)).rejects.toMatchObject({
-      command: `systemctl`,
-      stage: `link`,
-      unitName: service.filename,
-    } satisfies Partial<UnitStartError>);
+    expect(await systemd.start(service)).toMatchObject({
+      ok: false,
+      error: {
+        command: `systemctl`,
+        stage: `link`,
+        unitName: service.filename,
+      } satisfies Partial<UnitStartError>,
+    });
   });
 
   test(`runs an executable-backed service command inside the sandbox`, async () => {
@@ -185,6 +194,10 @@ describe(`systemd-ts sandbox`, () => {
     });
 
     const result = await systemd.materialize(service);
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw result.error;
+    }
     const materializedService = await readFile(systemd.pathFor(service), `utf8`);
 
     expect(materializedService).toContain(`ExecStart=${executable.toExecStart()}`);
@@ -212,15 +225,19 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    await systemd.materialize(service);
+    expect(await systemd.materialize(service)).toMatchObject({ ok: true });
     const started = await systemd.start(service);
+    expect(started.ok).toBe(true);
+    if (!started.ok) {
+      throw started.error;
+    }
 
     expect((await runGuestCommand(`cat ${shellQuote(markerFile)}`)).trim()).toBe(`started`);
-    expect(started.unit).toBe(service.filename);
-    expect(started.result).toBe(`success`);
-    expect(started.activeState).toBe(`inactive`);
-    expect(started.subState).toBe(`dead`);
-    expect(started.execMainStatus).toBe(0);
+    expect(started.value.unit).toBe(service.filename);
+    expect(started.value.result).toBe(`success`);
+    expect(started.value.activeState).toBe(`inactive`);
+    expect(started.value.subState).toBe(`dead`);
+    expect(started.value.execMainStatus).toBe(0);
   });
 
   test(`rejects start when a oneshot service exits non-zero and leaves failure details inspectable`, async () => {
@@ -234,13 +251,15 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    await systemd.materialize(service);
-
-    await expect(systemd.start(service)).rejects.toMatchObject({
-      command: `systemctl`,
-      stage: `start`,
-      unitName: service.filename,
-    } satisfies Partial<UnitStartError>);
+    expect(await systemd.materialize(service)).toMatchObject({ ok: true });
+    expect(await systemd.start(service)).toMatchObject({
+      ok: false,
+      error: {
+        command: `systemctl`,
+        stage: `start`,
+        unitName: service.filename,
+      } satisfies Partial<UnitStartError>,
+    });
 
     const status = parseSystemctlShow(
       await runGuestCommand(
@@ -269,11 +288,15 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    await systemd.materialize(service);
-    await systemd.start(service);
+    expect(await systemd.materialize(service)).toMatchObject({ ok: true });
+    expect(await systemd.start(service)).toMatchObject({ ok: true });
 
     const logs = await systemd.logs(service, { lines: 20 });
-    expect(logs).toContain(logLine);
+    expect(logs.ok).toBe(true);
+    if (!logs.ok) {
+      throw logs.error;
+    }
+    expect(logs.value).toContain(logLine);
   });
 
   test(`surfaces failed unit status through logs() after start rejection`, async () => {
@@ -287,17 +310,24 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    await systemd.materialize(service);
-    await expect(systemd.start(service)).rejects.toMatchObject({
-      command: `systemctl`,
-      stage: `start`,
-      unitName: service.filename,
-    } satisfies Partial<UnitStartError>);
+    expect(await systemd.materialize(service)).toMatchObject({ ok: true });
+    expect(await systemd.start(service)).toMatchObject({
+      ok: false,
+      error: {
+        command: `systemctl`,
+        stage: `start`,
+        unitName: service.filename,
+      } satisfies Partial<UnitStartError>,
+    });
 
     const logs = await systemd.logs(service, { lines: 20 });
-    expect(logs).toContain(service.filename);
-    expect(logs).toContain(`failed`);
-    expect(logs).toContain(`23`);
+    expect(logs.ok).toBe(true);
+    if (!logs.ok) {
+      throw logs.error;
+    }
+    expect(logs.value).toContain(service.filename);
+    expect(logs.value).toContain(`failed`);
+    expect(logs.value).toContain(`23`);
   });
 
   test(`wraps missing file-backed logs in a named error`, async () => {
@@ -313,11 +343,14 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    await expect(systemd.logs(service)).rejects.toMatchObject({
-      stage: `read-log-file`,
-      unitName: service.filename,
-      unitPath: missingLogFile,
-    } satisfies Partial<UnitLogsReadError>);
+    expect(await systemd.logs(service)).toMatchObject({
+      ok: false,
+      error: {
+        stage: `read-log-file`,
+        unitName: service.filename,
+        unitPath: missingLogFile,
+      } satisfies Partial<UnitLogsReadError>,
+    });
   });
 
   test(`signals READY=1 from a notify service process`, () => {
@@ -326,11 +359,12 @@ describe(`systemd-ts sandbox`, () => {
     const outputPath = `/tmp/systemd-ts-ready-${sandbox.id}.txt`;
     return (async () => {
       await startNotifyCapture(socketPath, outputPath);
-      await notify.ready({
+      const result = await notify.ready({
         executor: guestCommandExecutor,
         socketPath,
         status: `ready-status`,
       });
+      expect(result).toEqual({ ok: true, value: undefined });
 
       const payload = await waitForNotifyPayload(outputPath);
       expect(payload).toContain(`READY=1`);
@@ -344,12 +378,13 @@ describe(`systemd-ts sandbox`, () => {
     const outputPath = `/tmp/systemd-ts-watchdog-${sandbox.id}.txt`;
     return (async () => {
       await startNotifyCapture(socketPath, outputPath);
-      await notify.watchdog({
+      const result = await notify.watchdog({
         executor: guestCommandExecutor,
         pid: 1234,
         socketPath,
         status: `watchdog-status`,
       });
+      expect(result).toEqual({ ok: true, value: undefined });
 
       const payload = await waitForNotifyPayload(outputPath);
       expect(payload).toContain(`WATCHDOG=1`);
@@ -381,16 +416,20 @@ describe(`systemd-ts sandbox`, () => {
     });
     chronicle?.mark(`timer:definitions-ready`);
 
-    await systemd.materialize(service, timer);
+    expect(await systemd.materialize(service, timer)).toMatchObject({ ok: true });
     chronicle?.mark(`timer:materialize-finished`);
-    await systemd.enable(timer);
+    expect(await systemd.enable(timer)).toEqual({ ok: true, value: undefined });
     chronicle?.mark(`timer:enable-finished`);
     const started = await systemd.start(timer);
     chronicle?.mark(`timer:start-finished`);
+    expect(started.ok).toBe(true);
+    if (!started.ok) {
+      throw started.error;
+    }
 
-    expect(started.unit).toBe(timer.filename);
-    expect(started.activeState).toBe(`active`);
-    expect(started.subState).toBe(`waiting`);
+    expect(started.value.unit).toBe(timer.filename);
+    expect(started.value.activeState).toBe(`active`);
+    expect(started.value.subState).toBe(`waiting`);
     const triggered = await waitForTimerTrigger(timer, service);
     expect(triggered.timerResult).toBe(`success`);
     expect(triggered.serviceResult).toBe(`success`);
@@ -429,7 +468,7 @@ function isolatedSandboxSystemd(): Systemd {
 async function guestCommandExecutor(
   command: string,
   args: readonly string[],
-): Promise<CommandResult> {
+): Promise<CommandOutput> {
   const stdout = await runGuestCommand(
     [command, ...args].map((part) => shellQuote(part)).join(` `),
   );
@@ -443,7 +482,7 @@ async function guestCommandExecutor(
 async function isolatedGuestCommandExecutor(
   command: string,
   args: readonly string[],
-): Promise<CommandResult> {
+): Promise<CommandOutput> {
   const stdout = await runIsolatedGuestCommand(
     [command, ...args].map((part) => shellQuote(part)).join(` `),
   );

@@ -169,8 +169,14 @@ describe(`systemd-ts unit`, () => {
       unitDir: `/tmp/systemd-ts-empty`,
     });
 
-    await expect(systemd.materialize()).rejects.toBeInstanceOf(NoUnitsProvidedError);
-    await expect(systemd.enable()).rejects.toBeInstanceOf(NoUnitsProvidedError);
+    expect(await systemd.materialize()).toMatchObject({
+      ok: false,
+      error: expect.any(NoUnitsProvidedError),
+    });
+    expect(await systemd.enable()).toMatchObject({
+      ok: false,
+      error: expect.any(NoUnitsProvidedError),
+    });
   });
 
   test(`allows mismatched timer and service groups at runtime because the type system already guards this`, async () => {
@@ -192,8 +198,11 @@ describe(`systemd-ts unit`, () => {
     });
 
     // @ts-expect-error mismatched timers and services are a type "warning", but not a runtime error
-    await expect(systemd.materialize(service, timer)).resolves.toMatchObject({
-      directory: `/tmp/systemd-ts-mismatch`,
+    expect(await systemd.materialize(service, timer)).toMatchObject({
+      ok: true,
+      value: {
+        directory: `/tmp/systemd-ts-mismatch`,
+      },
     });
   });
 
@@ -208,9 +217,13 @@ describe(`systemd-ts unit`, () => {
       },
     });
     const result = await systemd.materialize(backup);
-    expect(result.materialized).toHaveLength(1);
-    expect(result.materialized[0]?.unit).toBe(backup);
-    expect(result.materialized[0]?.path).toBe(systemd.pathFor(backup));
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw new Error(`Expected materialize() to succeed`);
+    }
+    expect(result.value.materialized).toHaveLength(1);
+    expect(result.value.materialized[0]?.unit).toBe(backup);
+    expect(result.value.materialized[0]?.path).toBe(systemd.pathFor(backup));
   });
 });
 

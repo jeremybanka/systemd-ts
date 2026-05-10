@@ -50,13 +50,23 @@ const systemd = new Systemd({
 });
 
 const materialized = await systemd.materialize(service, timer);
+if (!materialized.ok) {
+  throw materialized.error;
+}
 
 console.log(systemd.pathFor(service));
 console.log(systemd.pathFor(timer));
-console.log(materialized.materialized);
+console.log(materialized.value.materialized);
 
-await systemd.enable(timer);
-await systemd.start(timer);
+const enabled = await systemd.enable(timer);
+if (!enabled.ok) {
+  throw enabled.error;
+}
+
+const started = await systemd.start(timer);
+if (!started.ok) {
+  throw started.error;
+}
 ```
 
 That will materialize `backup-db.service` and `backup-db.timer` into the user's

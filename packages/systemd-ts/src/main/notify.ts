@@ -1,4 +1,5 @@
-import { sendNotify } from "./internal.ts";
+import { NotifySendError } from "./errors.ts";
+import { sendNotify, type Result } from "./internal.ts";
 import type { NotifyOptions } from "./types.ts";
 
 /**
@@ -21,8 +22,22 @@ export const notify = {
    * ready to be considered fully started. If `options.status` is provided, it is
    * sent as an additional `STATUS=...` field.
    */
-  async ready(options: NotifyOptions = {}): Promise<void> {
-    await sendNotify(`READY=1`, options);
+  async ready(options: NotifyOptions = {}): Promise<Result<void, NotifySendError>> {
+    try {
+      await sendNotify(`READY=1`, options);
+      return { ok: true, value: undefined };
+    } catch (error) {
+      return {
+        ok: false,
+        error:
+          error instanceof NotifySendError
+            ? error
+            : new NotifySendError(`Failed to send READY=1 notification`, {
+                cause: error,
+                stage: `ready`,
+              }),
+      };
+    }
   },
 
   /**
@@ -32,7 +47,21 @@ export const notify = {
    * watchdog heartbeat. If `options.pid` is provided, it is sent as
    * `MAINPID=...`, and `options.status` is forwarded as `STATUS=...`.
    */
-  async watchdog(options: NotifyOptions = {}): Promise<void> {
-    await sendNotify(`WATCHDOG=1`, options);
+  async watchdog(options: NotifyOptions = {}): Promise<Result<void, NotifySendError>> {
+    try {
+      await sendNotify(`WATCHDOG=1`, options);
+      return { ok: true, value: undefined };
+    } catch (error) {
+      return {
+        ok: false,
+        error:
+          error instanceof NotifySendError
+            ? error
+            : new NotifySendError(`Failed to send WATCHDOG=1 notification`, {
+                cause: error,
+                stage: `watchdog`,
+              }),
+      };
+    }
   },
 };
