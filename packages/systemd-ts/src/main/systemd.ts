@@ -10,6 +10,7 @@ import {
   type Result,
 } from "./internal.ts";
 import {
+  classifyMaterializationReason,
   NoUnitsProvidedError,
   ExecutableInferenceError,
   InvalidExecDirectiveError,
@@ -388,7 +389,10 @@ export class Systemd {
     ]
       .map(shellQuote)
       .join(` `);
-    const status = await this.tryBestEffortCommand(`bash`, [`-lc`, `${statusCommand} 2>&1 || true`]);
+    const status = await this.tryBestEffortCommand(`bash`, [
+      `-lc`,
+      `${statusCommand} 2>&1 || true`,
+    ]);
     if (status !== undefined && status.length > 0) {
       diagnostics.statusOutput = status;
     }
@@ -431,10 +435,12 @@ export class Systemd {
     try {
       await writeUnitDirectory(this.unitDir);
     } catch (cause) {
+      const reason = classifyMaterializationReason(cause);
       return err(
         new UnitMaterializationError(`Failed to create unit directory ${this.unitDir}`, {
           cause,
           operation: `create-directory`,
+          ...(reason === undefined ? {} : { reason }),
           unitPath: this.unitDir,
         }),
       );
@@ -454,10 +460,12 @@ export class Systemd {
           return err(cause);
         }
 
+        const reason = classifyMaterializationReason(cause);
         return err(
           new UnitMaterializationError(`Failed to materialize ${unit.filename} into ${path}`, {
             cause,
             operation: `write-file`,
+            ...(reason === undefined ? {} : { reason }),
             unitName: unit.filename,
             unitPath: path,
           }),

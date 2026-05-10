@@ -17,6 +17,7 @@ export interface SystemdTsErrorOptions {
 export interface SystemdCommandErrorOptions extends SystemdTsErrorOptions {
   readonly args?: readonly string[];
   readonly command?: string;
+  readonly environmentReason?: SystemdCommandEnvironmentReason;
   readonly stage?: string;
   readonly unitName?: string;
 }
@@ -32,10 +33,16 @@ export interface UnitStartErrorOptions extends SystemdCommandErrorOptions {
 }
 
 export interface UnitMaterializationErrorOptions extends SystemdTsErrorOptions {
+  readonly reason?: UnitMaterializationErrorReason;
   readonly operation?: `create-directory` | `write-file`;
   readonly unitName?: string;
   readonly unitPath?: string;
 }
+
+export type UnitMaterializationErrorReason =
+  | `file-system-failed`
+  | `invalid-unit-directory`
+  | `permission-denied`;
 
 export interface UnitLogsReadErrorOptions extends SystemdCommandErrorOptions {
   readonly reason?: UnitLogsReadErrorReason;
@@ -52,6 +59,11 @@ export interface NotifySendErrorOptions extends SystemdCommandErrorOptions {
 }
 
 export type NotifySendErrorReason = `executor-failed` | `systemd-notify-failed`;
+
+export type SystemdCommandEnvironmentReason =
+  | `manager-unavailable`
+  | `missing-command`
+  | `permission-denied`;
 
 export class SystemdTsError extends Error {
   public readonly code: SystemdTsErrorCode;
@@ -105,12 +117,14 @@ export class ExecutableInferenceError extends SystemdTsError {
 
 export class UnitMaterializationError extends SystemdTsError {
   public readonly operation: `create-directory` | `write-file` | undefined;
+  public readonly reason: UnitMaterializationErrorReason | undefined;
   public readonly unitName: string | undefined;
   public readonly unitPath: string | undefined;
 
   public constructor(message: string, options: UnitMaterializationErrorOptions = {}) {
     super(`SYSTEMD_TS_UNIT_MATERIALIZATION`, message, options);
     this.operation = options.operation;
+    this.reason = options.reason;
     this.unitName = options.unitName;
     this.unitPath = options.unitPath;
   }
@@ -119,6 +133,7 @@ export class UnitMaterializationError extends SystemdTsError {
 export class UnitEnableError extends SystemdTsError {
   public readonly args: readonly string[] | undefined;
   public readonly command: string | undefined;
+  public readonly environmentReason: SystemdCommandEnvironmentReason | undefined;
   public readonly exitCode: number | undefined;
   public readonly stage: string | undefined;
   public readonly stderr: string | undefined;
@@ -130,6 +145,8 @@ export class UnitEnableError extends SystemdTsError {
     const details = extractCommandErrorDetails(options.cause);
     this.args = options.args;
     this.command = options.command;
+    this.environmentReason =
+      options.environmentReason ?? classifyCommandEnvironmentReason(options.cause);
     this.exitCode = details.exitCode;
     this.stage = options.stage;
     this.stderr = details.stderr;
@@ -142,6 +159,7 @@ export class UnitStartError extends SystemdTsError {
   public readonly args: readonly string[] | undefined;
   public readonly command: string | undefined;
   public readonly diagnostics: UnitStartDiagnostics | undefined;
+  public readonly environmentReason: SystemdCommandEnvironmentReason | undefined;
   public readonly exitCode: number | undefined;
   public readonly stage: string | undefined;
   public readonly stderr: string | undefined;
@@ -154,6 +172,8 @@ export class UnitStartError extends SystemdTsError {
     this.args = options.args;
     this.command = options.command;
     this.diagnostics = options.diagnostics;
+    this.environmentReason =
+      options.environmentReason ?? classifyCommandEnvironmentReason(options.cause);
     this.exitCode = details.exitCode;
     this.stage = options.stage;
     this.stderr = details.stderr;
@@ -165,6 +185,7 @@ export class UnitStartError extends SystemdTsError {
 export class UnitLogsReadError extends SystemdTsError {
   public readonly args: readonly string[] | undefined;
   public readonly command: string | undefined;
+  public readonly environmentReason: SystemdCommandEnvironmentReason | undefined;
   public readonly exitCode: number | undefined;
   public readonly reason: UnitLogsReadErrorReason | undefined;
   public readonly stage: string | undefined;
@@ -178,6 +199,8 @@ export class UnitLogsReadError extends SystemdTsError {
     const details = extractCommandErrorDetails(options.cause);
     this.args = options.args;
     this.command = options.command;
+    this.environmentReason =
+      options.environmentReason ?? classifyCommandEnvironmentReason(options.cause);
     this.exitCode = details.exitCode;
     this.reason = options.reason;
     this.stage = options.stage;
@@ -191,6 +214,7 @@ export class UnitLogsReadError extends SystemdTsError {
 export class NotifySendError extends SystemdTsError {
   public readonly args: readonly string[] | undefined;
   public readonly command: string | undefined;
+  public readonly environmentReason: SystemdCommandEnvironmentReason | undefined;
   public readonly exitCode: number | undefined;
   public readonly reason: NotifySendErrorReason | undefined;
   public readonly stage: string | undefined;
@@ -202,12 +226,64 @@ export class NotifySendError extends SystemdTsError {
     const details = extractCommandErrorDetails(options.cause);
     this.args = options.args;
     this.command = options.command;
+    this.environmentReason =
+      options.environmentReason ?? classifyCommandEnvironmentReason(options.cause);
     this.exitCode = details.exitCode;
     this.reason = options.reason;
     this.stage = options.stage;
     this.stderr = details.stderr;
     this.stdout = details.stdout;
   }
+}
+
+export function classifyCommandEnvironmentReason(
+  cause: unknown,
+): SystemdCommandEnvironmentReason | undefined {
+  if (cause === null || typeof cause !== `object`) {
+    return undefined;
+  }
+
+  const record = cause as Record<string, unknown>;
+  if (record[`code`] === `ENOENT`) {
+    return `missing-command`;
+  }
+
+  if (record[`code`] === `EACCES` || record[`code`] === `EPERM`) {
+    return `permission-denied`;
+  }
+
+  const combinedOutput = [record[`stderr`], record[`stdout`]]
+    .filter((value): value is string => typeof value === `string` && value.length > 0)
+    .join(`\n`);
+
+  if (
+    combinedOutput.includes(`Failed to connect to bus`) ||
+    combinedOutput.includes(`System has not been booted with systemd`) ||
+    combinedOutput.includes(`Failed to get D-Bus connection`)
+  ) {
+    return `manager-unavailable`;
+  }
+
+  return undefined;
+}
+
+export function classifyMaterializationReason(
+  cause: unknown,
+): UnitMaterializationErrorReason | undefined {
+  if (cause === null || typeof cause !== `object`) {
+    return undefined;
+  }
+
+  const record = cause as Record<string, unknown>;
+  if (record[`code`] === `EACCES` || record[`code`] === `EPERM` || record[`code`] === `EROFS`) {
+    return `permission-denied`;
+  }
+
+  if (record[`code`] === `EEXIST` || record[`code`] === `ENOTDIR` || record[`code`] === `EISDIR`) {
+    return `invalid-unit-directory`;
+  }
+
+  return `file-system-failed`;
 }
 
 function extractCommandErrorDetails(cause: unknown): {

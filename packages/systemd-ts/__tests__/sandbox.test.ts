@@ -211,9 +211,7 @@ describe(`systemd-ts sandbox`, () => {
       await runGuestCommand(`test -x ${shellQuote(executable.runtimeEntrypoint)} && echo ok`),
     ).toContain(`ok`);
 
-    await runGuestCommand(
-      `SYSTEMD_TS_MARKER_FILE=${shellQuote(markerFile)} ${execStart.value}`,
-    );
+    await runGuestCommand(`SYSTEMD_TS_MARKER_FILE=${shellQuote(markerFile)} ${execStart.value}`);
 
     expect(await runGuestCommand(`cat ${shellQuote(markerFile)}`)).toBe(`ran`);
   });

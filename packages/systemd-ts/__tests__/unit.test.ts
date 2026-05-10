@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -14,7 +14,10 @@ import {
   Systemd,
   SystemdService,
   SystemdTimer,
+  UnitEnableError,
   UnitLogsReadError,
+  UnitMaterializationError,
+  UnitStartError,
   notify,
 } from "../src/main/index.ts";
 
@@ -274,16 +277,98 @@ describe(`systemd-ts unit`, () => {
     });
   });
 
+  test(`classifies invalid unit directories during materialization`, async () => {
+    const fixtureDir = await mkdtemp(join(tmpdir(), `systemd-ts-invalid-unit-dir-`));
+    const unitDir = join(fixtureDir, `not-a-directory`);
+    const service = new SystemdService({
+      name: `backup-db`,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+
+    try {
+      await writeFile(unitDir, `occupied`, `utf8`);
+      const systemd = new Systemd({ unitDir });
+      const result = await systemd.materialize(service);
+
+      expect(result).toMatchObject({
+        ok: false,
+        error: {
+          reason: `invalid-unit-directory`,
+          unitPath: unitDir,
+        } satisfies Partial<UnitMaterializationError>,
+      });
+    } finally {
+      await rm(fixtureDir, { force: true, recursive: true });
+    }
+  });
+
+  test(`classifies missing systemctl as an environment dependency error`, async () => {
+    const systemd = new Systemd({
+      executor: async () => {
+        throw Object.assign(new Error(`spawn systemctl ENOENT`), { code: `ENOENT` });
+      },
+      unitDir: `/tmp/systemd-ts-enable`,
+    });
+    const service = new SystemdService({
+      name: `backup-db`,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+
+    const enabled = await systemd.enable(service);
+    expect(enabled).toMatchObject({
+      ok: false,
+      error: {
+        environmentReason: `missing-command`,
+      } satisfies Partial<UnitEnableError>,
+    });
+  });
+
+  test(`classifies unavailable systemd managers during start`, async () => {
+    const systemd = new Systemd({
+      executor: async (_command, args) => {
+        if (args.includes(`daemon-reload`)) {
+          throw Object.assign(new Error(`Failed to connect to bus`), {
+            code: 1,
+            stderr: `Failed to connect to bus: No medium found`,
+          });
+        }
+
+        return { stdout: ``, stderr: `` };
+      },
+      unitDir: `/tmp/systemd-ts-start`,
+    });
+    const service = new SystemdService({
+      name: `backup-db`,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+
+    const started = await systemd.start(service);
+    expect(started).toMatchObject({
+      ok: false,
+      error: {
+        environmentReason: `manager-unavailable`,
+        stage: `daemon-reload`,
+      } satisfies Partial<UnitStartError>,
+    });
+  });
+
   test(`reports a structured reason when notify executor delivery fails`, async () => {
     const result = await notify.ready({
       executor: async () => {
-        throw new Error(`notify exploded`);
+        throw Object.assign(new Error(`notify exploded`), { code: `ENOENT` });
       },
     });
 
     expect(result).toMatchObject({
       ok: false,
       error: {
+        environmentReason: `missing-command`,
         reason: `executor-failed`,
       } satisfies Partial<NotifySendError>,
     });

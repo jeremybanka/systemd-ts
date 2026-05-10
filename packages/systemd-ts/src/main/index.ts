@@ -38,6 +38,12 @@ export type {
   UnitValue,
   ValidInstallUnits,
 } from "./types.ts";
+export type {
+  NotifySendErrorReason,
+  SystemdCommandEnvironmentReason,
+  UnitLogsReadErrorReason,
+  UnitMaterializationErrorReason,
+} from "./errors.ts";
 
 import * as I from "./internal.ts";
 /**
