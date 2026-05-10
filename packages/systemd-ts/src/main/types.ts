@@ -89,7 +89,11 @@ export type MemoryTHPDirectiveValue = "inherit" | "disable" | "madvise" | "syste
 export type ProcSubsetDirectiveValue = "all" | "pid";
 export type ProtectProcDirectiveValue = "noaccess" | "invisible" | "ptraceable" | "default";
 export type UtmpModeDirectiveValue = "init" | "login" | "user";
-export type ProcessResourceLimitDirectiveValue = number | string;
+export type ProcessResourceLimitDirectiveValue =
+  | number
+  | "infinity"
+  | `${string}:${string}`
+  | (string & {});
 export type ManagedOOMDirectiveValue = "auto" | "kill";
 export type ManagedOOMPreferenceDirectiveValue = "none" | "avoid" | "omit";
 export type StandardInputDirectiveValue =
