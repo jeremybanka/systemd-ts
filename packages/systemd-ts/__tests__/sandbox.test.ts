@@ -142,6 +142,20 @@ describe(`systemd-ts sandbox`, () => {
     expect(wantsLink.trim()).toBe(systemd.pathFor(timer));
   });
 
+  test(`rejects start when the unit was never materialized into the sandbox`, async () => {
+    const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
+      service: {
+        Type: `oneshot`,
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+
+    await expect(systemd.start(service)).rejects.toThrow(service.filename);
+  });
+
   test(`runs an executable-backed service command inside the sandbox`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
@@ -198,6 +212,34 @@ describe(`systemd-ts sandbox`, () => {
     expect(started.execMainStatus).toBe(0);
   });
 
+  test(`rejects start when a oneshot service exits non-zero and leaves failure details inspectable`, async () => {
+    const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
+      service: {
+        Type: `oneshot`,
+        ExecStart: `/usr/bin/bash -lc 'echo sandbox-failure >&2; exit 17'`,
+      },
+    });
+
+    await systemd.materialize(service);
+
+    await expect(systemd.start(service)).rejects.toThrow(service.filename);
+
+    const status = parseSystemctlShow(
+      await runGuestCommand(
+        `systemctl --user show ${shellQuote(service.filename)} --property=Id,ActiveState,SubState,Result,ExecMainStatus`,
+      ),
+    );
+
+    expect(status[`Id`]).toBe(service.filename);
+    expect(status[`ActiveState`]).toBe(`failed`);
+    expect(status[`SubState`]).toBe(`failed`);
+    expect(status[`Result`]).toBe(`exit-code`);
+    expect(parseNumber(status[`ExecMainStatus`])).toBe(17);
+  });
+
   test(`reads recent journald output for a managed unit`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
@@ -217,6 +259,26 @@ describe(`systemd-ts sandbox`, () => {
 
     const logs = await systemd.logs(service, { lines: 20 });
     expect(logs).toContain(logLine);
+  });
+
+  test(`surfaces failed unit status through logs() after start rejection`, async () => {
+    const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
+      service: {
+        Type: `oneshot`,
+        ExecStart: `/usr/bin/bash -lc 'echo failed-log-line >&2; exit 23'`,
+      },
+    });
+
+    await systemd.materialize(service);
+    await expect(systemd.start(service)).rejects.toThrow(service.filename);
+
+    const logs = await systemd.logs(service, { lines: 20 });
+    expect(logs).toContain(service.filename);
+    expect(logs).toContain(`failed`);
+    expect(logs).toContain(`23`);
   });
 
   test(`signals READY=1 from a notify service process`, () => {
