@@ -20,7 +20,7 @@ import {
   useCurrentTestSandbox,
 } from "../src/test/sandbox.ts";
 
-const installTestName = `installs a user service and timer into an isolated systemd sandbox`;
+const materializeTestName = `materializes a user service and timer into an isolated systemd sandbox`;
 const guestExecutableFixturePath = fileURLToPath(
   new URL(`./fixtures/guest-executable-fixture.sh`, import.meta.url),
 );
@@ -52,7 +52,7 @@ afterEach(async () => {
 });
 
 describe(`systemd-ts sandbox`, () => {
-  test(installTestName, async () => {
+  test(materializeTestName, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
     chronicle?.mark(`test:start`);
@@ -83,8 +83,8 @@ describe(`systemd-ts sandbox`, () => {
     });
     chronicle?.mark(`test:definitions-ready`);
 
-    const result = await systemd.install(service, timer);
-    chronicle?.mark(`test:install-finished`);
+    const result = await systemd.materialize(service, timer);
+    chronicle?.mark(`test:materialize-finished`);
 
     expect(result.directory).toBe(sandbox.linkedUnitDir);
     expect(result.pathFor(service)).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.service`);
@@ -97,16 +97,16 @@ describe(`systemd-ts sandbox`, () => {
     chronicle?.mark(`test:guest-path-check-finished`);
     expect(guestFiles).toContain(`ok`);
 
-    const installedService = await readFile(result.pathFor(service), `utf8`);
-    const installedTimer = await readFile(result.pathFor(timer), `utf8`);
+    const materializedService = await readFile(result.pathFor(service), `utf8`);
+    const materializedTimer = await readFile(result.pathFor(timer), `utf8`);
     chronicle?.mark(`test:host-read-finished`);
 
-    expect(installedService).toContain(`[Service]`);
-    expect(installedService).toContain(
+    expect(materializedService).toContain(`[Service]`);
+    expect(materializedService).toContain(
       `ExecStart=/usr/bin/bash -lc 'echo installed > ${sandbox.workDir}/marker.txt'`,
     );
-    expect(installedTimer).toContain(`[Timer]`);
-    expect(installedTimer).toContain(`Persistent=true`);
+    expect(materializedTimer).toContain(`[Timer]`);
+    expect(materializedTimer).toContain(`Persistent=true`);
     chronicle?.mark(`test:assertions-finished`);
   });
 
@@ -128,7 +128,7 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    await systemd.install(timer);
+    await systemd.materialize(timer);
     await systemd.enable(timer);
 
     const systemdStatus = await runGuestCommand(
@@ -159,11 +159,11 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    const result = await systemd.install(service);
-    const installedService = await readFile(result.pathFor(service), `utf8`);
+    const result = await systemd.materialize(service);
+    const materializedService = await readFile(result.pathFor(service), `utf8`);
 
-    expect(installedService).toContain(`ExecStart=${executable.toExecStart()}`);
-    expect(installedService).toContain(`Environment=SYSTEMD_TS_MARKER_FILE=${markerFile}`);
+    expect(materializedService).toContain(`ExecStart=${executable.toExecStart()}`);
+    expect(materializedService).toContain(`Environment=SYSTEMD_TS_MARKER_FILE=${markerFile}`);
     expect(
       await runGuestCommand(`test -x ${shellQuote(executable.runtimeEntrypoint)} && echo ok`),
     ).toContain(`ok`);
@@ -187,7 +187,7 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    await systemd.install(service);
+    await systemd.materialize(service);
     const started = await systemd.start(service);
 
     expect((await runGuestCommand(`cat ${shellQuote(markerFile)}`)).trim()).toBe(`started`);
@@ -212,7 +212,7 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    await systemd.install(service);
+    await systemd.materialize(service);
     await systemd.start(service);
 
     const logs = await systemd.logs(service, { lines: 20 });
@@ -257,7 +257,7 @@ describe(`systemd-ts sandbox`, () => {
     })();
   });
 
-  test(`installs, enables, and runs a timer-driven service end to end`, async () => {
+  test(`materializes, enables, and runs a timer-driven service end to end`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = isolatedSandboxSystemd();
     chronicle?.mark(`timer:start`);
@@ -280,8 +280,8 @@ describe(`systemd-ts sandbox`, () => {
     });
     chronicle?.mark(`timer:definitions-ready`);
 
-    await systemd.install(service, timer);
-    chronicle?.mark(`timer:install-finished`);
+    await systemd.materialize(service, timer);
+    chronicle?.mark(`timer:materialize-finished`);
     await systemd.enable(timer);
     chronicle?.mark(`timer:enable-finished`);
     const started = await systemd.start(timer);

@@ -5,7 +5,7 @@ services and timers from TypeScript.
 
 ## Usage
 
-The example below installs a user-scoped service and timer for a small
+The example below materializes a user-scoped service and timer for a small
 nightly backup job. The service does the work, the timer schedules it, and
 `Systemd` writes both unit files before enabling and starting the timer.
 
@@ -49,15 +49,15 @@ const systemd = new Systemd({
   linkUnits: true,
 });
 
-const installed = await systemd.install(service, timer);
+const materialized = await systemd.materialize(service, timer);
 
-console.log(installed.pathFor(service));
-console.log(installed.pathFor(timer));
+console.log(materialized.pathFor(service));
+console.log(materialized.pathFor(timer));
 
 await systemd.enable(timer);
 await systemd.start(timer);
 ```
 
-That will write `backup-db.service` and `backup-db.timer` into the user's unit
-directory, enable the timer under `timers.target`, and ask `systemd --user` to
-start waiting for the first scheduled run.
+That will materialize `backup-db.service` and `backup-db.timer` into the user's
+unit directory, enable the timer under `timers.target`, and ask `systemd --user`
+to start waiting for the first scheduled run.
