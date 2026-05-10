@@ -23,7 +23,6 @@ export type {
   TimerFilename,
   TimerTargetServiceName,
   TimerTargetUnit,
-  UnitSection,
   UnitValue,
   ValidInstallUnits,
 } from "./types.ts";
