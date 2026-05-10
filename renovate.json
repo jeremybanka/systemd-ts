@@ -11,11 +11,26 @@
       "depNameTemplate": "systemd/systemd",
       "datasourceTemplate": "github-releases",
       "versioningTemplate": "semver-coerced"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^\\.github\\/actions\\/setup\\/action\\.yml$/"],
+      "matchStrings": [
+        "uses: jdx\\/mise-action@v\\S+\\s+      with:\\s+        version: (?<currentValue>\\S+)"
+      ],
+      "depNameTemplate": "jdx/mise",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "semver-coerced"
     }
   ],
   "packageRules": [
     {
       "matchPackageNames": ["systemd/systemd"],
+      "matchDatasources": ["github-releases"],
+      "ignoreUnstable": true
+    },
+    {
+      "matchPackageNames": ["jdx/mise"],
       "matchDatasources": ["github-releases"],
       "ignoreUnstable": true
     }
