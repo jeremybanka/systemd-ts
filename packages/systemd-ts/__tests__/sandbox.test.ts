@@ -361,6 +361,7 @@ describe(`systemd-ts sandbox`, () => {
     expect(await systemd.logs(service)).toMatchObject({
       ok: false,
       error: {
+        reason: `missing-log-file`,
         stage: `read-log-file`,
         unitName: service.filename,
         unitPath: missingLogFile,

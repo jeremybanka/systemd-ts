@@ -235,6 +235,7 @@ export async function sendNotify(
           args: [`-lc`, command],
           cause,
           command: `bash`,
+          reason: `executor-failed`,
           stage: `executor`,
         },
       );
@@ -256,6 +257,7 @@ export async function sendNotify(
       args,
       cause,
       command: `systemd-notify`,
+      reason: `systemd-notify-failed`,
       stage: `systemd-notify`,
     });
   }

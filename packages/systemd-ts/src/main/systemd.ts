@@ -244,6 +244,7 @@ export class Systemd {
         return err(
           new UnitLogsReadError(`Failed to read logs for ${unit.filename} from ${fileLogPath}`, {
             cause,
+            reason: isMissingPathError(cause) ? `missing-log-file` : `log-file-read-failed`,
             stage: `read-log-file`,
             unitName: unit.filename,
             unitPath: fileLogPath,
@@ -275,6 +276,7 @@ export class Systemd {
           args,
           cause,
           command: `bash`,
+          reason: `status-command-failed`,
           stage: `status`,
           unitName: unit.filename,
         }),
@@ -533,6 +535,14 @@ function parseFileLogPath(value: string): string | undefined {
 
 function tailLines(output: string, lines: number): string {
   return output.split(`\n`).slice(-lines).join(`\n`);
+}
+
+function isMissingPathError(cause: unknown): boolean {
+  if (cause === null || typeof cause !== `object`) {
+    return false;
+  }
+
+  return (cause as Record<string, unknown>)[`code`] === `ENOENT`;
 }
 
 async function writeUnitDirectory(path: string): Promise<void> {

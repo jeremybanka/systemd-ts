@@ -10,9 +10,12 @@ import {
   Executable,
   InvalidExecDirectiveError,
   NoUnitsProvidedError,
+  NotifySendError,
   Systemd,
   SystemdService,
   SystemdTimer,
+  UnitLogsReadError,
+  notify,
 } from "../src/main/index.ts";
 
 const execFileAsync = promisify(execFile);
@@ -246,6 +249,44 @@ describe(`systemd-ts unit`, () => {
     expect(result.value.materialized).toHaveLength(1);
     expect(result.value.materialized[0]?.unit).toBe(backup);
     expect(result.value.materialized[0]?.path).toBe(systemd.pathFor(backup));
+  });
+
+  test(`reports a structured reason when systemctl status logging fails`, async () => {
+    const systemd = new Systemd({
+      executor: async () => {
+        throw new Error(`status exploded`);
+      },
+      unitDir: `/tmp/systemd-ts-logs`,
+    });
+    const service = new SystemdService({
+      name: `backup-db`,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+
+    const logs = await systemd.logs(service);
+    expect(logs).toMatchObject({
+      ok: false,
+      error: {
+        reason: `status-command-failed`,
+      } satisfies Partial<UnitLogsReadError>,
+    });
+  });
+
+  test(`reports a structured reason when notify executor delivery fails`, async () => {
+    const result = await notify.ready({
+      executor: async () => {
+        throw new Error(`notify exploded`);
+      },
+    });
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: {
+        reason: `executor-failed`,
+      } satisfies Partial<NotifySendError>,
+    });
   });
 });
 

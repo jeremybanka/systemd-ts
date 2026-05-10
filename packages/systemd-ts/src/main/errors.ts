@@ -38,8 +38,20 @@ export interface UnitMaterializationErrorOptions extends SystemdTsErrorOptions {
 }
 
 export interface UnitLogsReadErrorOptions extends SystemdCommandErrorOptions {
+  readonly reason?: UnitLogsReadErrorReason;
   readonly unitPath?: string;
 }
+
+export type UnitLogsReadErrorReason =
+  | `missing-log-file`
+  | `log-file-read-failed`
+  | `status-command-failed`;
+
+export interface NotifySendErrorOptions extends SystemdCommandErrorOptions {
+  readonly reason?: NotifySendErrorReason;
+}
+
+export type NotifySendErrorReason = `executor-failed` | `systemd-notify-failed`;
 
 export class SystemdTsError extends Error {
   public readonly code: SystemdTsErrorCode;
@@ -154,6 +166,7 @@ export class UnitLogsReadError extends SystemdTsError {
   public readonly args: readonly string[] | undefined;
   public readonly command: string | undefined;
   public readonly exitCode: number | undefined;
+  public readonly reason: UnitLogsReadErrorReason | undefined;
   public readonly stage: string | undefined;
   public readonly stderr: string | undefined;
   public readonly stdout: string | undefined;
@@ -166,6 +179,7 @@ export class UnitLogsReadError extends SystemdTsError {
     this.args = options.args;
     this.command = options.command;
     this.exitCode = details.exitCode;
+    this.reason = options.reason;
     this.stage = options.stage;
     this.stderr = details.stderr;
     this.stdout = details.stdout;
@@ -178,16 +192,18 @@ export class NotifySendError extends SystemdTsError {
   public readonly args: readonly string[] | undefined;
   public readonly command: string | undefined;
   public readonly exitCode: number | undefined;
+  public readonly reason: NotifySendErrorReason | undefined;
   public readonly stage: string | undefined;
   public readonly stderr: string | undefined;
   public readonly stdout: string | undefined;
 
-  public constructor(message: string, options: SystemdCommandErrorOptions = {}) {
+  public constructor(message: string, options: NotifySendErrorOptions = {}) {
     super(`SYSTEMD_TS_NOTIFY_SEND`, message, options);
     const details = extractCommandErrorDetails(options.cause);
     this.args = options.args;
     this.command = options.command;
     this.exitCode = details.exitCode;
+    this.reason = options.reason;
     this.stage = options.stage;
     this.stderr = details.stderr;
     this.stdout = details.stdout;
