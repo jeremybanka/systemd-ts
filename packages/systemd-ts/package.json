@@ -1,6 +1,6 @@
 {
   "name": "systemd-ts",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "TypeScript builders and helpers for systemd services and timers.",
   "license": "MIT",
   "files": [
