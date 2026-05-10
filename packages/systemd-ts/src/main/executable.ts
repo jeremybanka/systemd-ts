@@ -2,6 +2,7 @@ import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { ExecutableInferenceError } from "./errors.ts";
+import type { Result } from "./internal.ts";
 import type { ExecutableOptions } from "./types.ts";
 
 const currentModulePath = fileURLToPath(import.meta.url);
@@ -22,6 +23,8 @@ const currentModulePath = fileURLToPath(import.meta.url);
 export class Executable {
   /** Additional arguments passed after the module path. */
   public readonly args: readonly string[];
+  /** Inference issue captured when no explicit module path was provided. */
+  public readonly inferenceError: ExecutableInferenceError | undefined;
   /** Absolute path to the module that should be executed. */
   public readonly modulePath: string;
   /** Absolute path to the runtime binary that should launch the module. */
@@ -40,7 +43,12 @@ export class Executable {
    */
   public constructor(options: ExecutableOptions = {}) {
     this.runtimeEntrypoint = options.runtimeEntrypoint ?? process.execPath;
-    this.modulePath = options.modulePath ?? inferCallerModulePath();
+    const inferredModulePath = options.modulePath ?? tryInferCallerModulePath();
+    this.inferenceError =
+      inferredModulePath === undefined && options.modulePath === undefined
+        ? new ExecutableInferenceError()
+        : undefined;
+    this.modulePath = inferredModulePath ?? ``;
     this.args = Object.freeze([...(options.args ?? [])]);
     Object.freeze(this);
   }
@@ -51,16 +59,34 @@ export class Executable {
    * The first element is always the runtime entrypoint, followed by the module
    * path and any configured arguments.
    */
-  public toCommandParts(): readonly [string, ...string[]] {
-    return [this.runtimeEntrypoint, this.modulePath, ...this.args];
+  public toCommandParts(): Result<readonly [string, ...string[]], ExecutableInferenceError> {
+    if (this.inferenceError !== undefined) {
+      return {
+        ok: false,
+        error: this.inferenceError,
+      };
+    }
+
+    return {
+      ok: true,
+      value: [this.runtimeEntrypoint, this.modulePath, ...this.args],
+    };
   }
 
   /**
    * Renders the executable as a shell-quoted command string suitable for
    * executable-valued systemd directives such as `ExecStart=`.
    */
-  public toExecStart(): string {
-    return this.toCommandParts().map(shellQuote).join(` `);
+  public toExecStart(): Result<string, ExecutableInferenceError> {
+    const commandParts = this.toCommandParts();
+    if (!commandParts.ok) {
+      return commandParts;
+    }
+
+    return {
+      ok: true,
+      value: commandParts.value.map(shellQuote).join(` `),
+    };
   }
 }
 
@@ -89,7 +115,7 @@ export function defineExecutable(
 ): Executable {
   const executable = new Executable(options);
 
-  if (isMainModule(executable.modulePath)) {
+  if (executable.inferenceError === undefined && isMainModule(executable.modulePath)) {
     void Promise.resolve(fn()).catch((error: unknown) => {
       process.exitCode = 1;
       throw error;
@@ -99,7 +125,7 @@ export function defineExecutable(
   return executable;
 }
 
-function inferCallerModulePath(): string {
+function tryInferCallerModulePath(): string | undefined {
   const stack = new Error().stack ?? ``;
   for (const line of stack.split(`\n`).slice(1)) {
     const candidate = extractStackPath(line);
@@ -110,7 +136,7 @@ function inferCallerModulePath(): string {
     return candidate;
   }
 
-  throw new ExecutableInferenceError();
+  return undefined;
 }
 
 function extractStackPath(line: string): string | undefined {

@@ -11,6 +11,7 @@ import {
 } from "./internal.ts";
 import {
   NoUnitsProvidedError,
+  ExecutableInferenceError,
   InvalidExecDirectiveError,
   UnitEnableError,
   UnitLogsReadError,
@@ -96,7 +97,10 @@ export class Systemd {
   ): Promise<
     Result<
       SystemdMaterialization<TUnits>,
-      InvalidExecDirectiveError | NoUnitsProvidedError | UnitMaterializationError
+      | ExecutableInferenceError
+      | InvalidExecDirectiveError
+      | NoUnitsProvidedError
+      | UnitMaterializationError
     >
   > {
     return this.materializeUnits(units);
@@ -361,7 +365,10 @@ export class Systemd {
   ): Promise<
     Result<
       SystemdMaterialization<TUnits>,
-      InvalidExecDirectiveError | NoUnitsProvidedError | UnitMaterializationError
+      | ExecutableInferenceError
+      | InvalidExecDirectiveError
+      | NoUnitsProvidedError
+      | UnitMaterializationError
     >
   > {
     if (units.length === 0) {
@@ -383,8 +390,12 @@ export class Systemd {
     const materialized: MaterializedUnit<TUnits[number]>[] = [];
     for (const unit of units) {
       const path = join(this.unitDir, unit.filename);
+      const rendered = unit.render();
+      if (!rendered.ok) {
+        return err(rendered.error);
+      }
       try {
-        await writeFile(path, unit.render(), `utf8`);
+        await writeFile(path, rendered.value, `utf8`);
       } catch (cause) {
         if (cause instanceof InvalidExecDirectiveError) {
           return err(cause);

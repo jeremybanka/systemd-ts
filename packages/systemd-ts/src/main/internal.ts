@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
 import { promisify } from "node:util";
 
-import { InvalidExecDirectiveError, NotifySendError } from "./errors.ts";
+import { ExecutableInferenceError, InvalidExecDirectiveError, NotifySendError } from "./errors.ts";
 import { Executable } from "./executable.ts";
 import type {
   CommandOutput,
@@ -90,10 +90,20 @@ export function cloneUnitSection<TSection extends SectionLike | undefined>(
   return Object.freeze(Object.fromEntries(entries)) as TSection;
 }
 
-export function validateServiceSection(service: SystemdServiceSection): void {
+export function validateServiceSection(
+  service: SystemdServiceSection,
+): Result<void, InvalidExecDirectiveError> {
   for (const key of EXEC_DIRECTIVE_KEYS) {
-    assertAbsoluteExecValue(key, service[key]);
+    const validation = assertAbsoluteExecValue(key, service[key]);
+    if (!validation.ok) {
+      return validation;
+    }
   }
+
+  return {
+    ok: true,
+    value: undefined,
+  };
 }
 
 export function parseStartStatus(unit: string, output: string): StartStatus {
@@ -126,34 +136,56 @@ export function parseStartStatus(unit: string, output: string): StartStatus {
 
 export function renderUnitFile(
   sections: ReadonlyArray<readonly [string, SectionLike | undefined]>,
-): string {
-  const renderedSections = sections
-    .flatMap(([sectionName, section]) => {
-      if (section === undefined) {
-        return [];
-      }
-
-      const lines = Object.entries(section as Record<string, unknown>).flatMap(([key, value]) => {
-        if (value === undefined) {
+): Result<string, ExecutableInferenceError> {
+  try {
+    const renderedSections = sections
+      .flatMap(([sectionName, section]) => {
+        if (section === undefined) {
           return [];
         }
 
-        if (isUnitValueList(value)) {
-          return value.map((entry) => `${key}=${stringifyUnitValue(entry)}`);
+        const lines: string[] = [];
+        for (const [key, value] of Object.entries(section as Record<string, unknown>)) {
+          if (value === undefined) {
+            continue;
+          }
+
+          if (isUnitValueList(value)) {
+            for (const entry of value) {
+              const rendered = stringifyUnitValue(entry);
+              if (!rendered.ok) {
+                throw rendered.error;
+              }
+              lines.push(`${key}=${rendered.value}`);
+            }
+            continue;
+          }
+
+          const rendered = stringifyUnitValue(value as UnitValue);
+          if (!rendered.ok) {
+            throw rendered.error;
+          }
+          lines.push(`${key}=${rendered.value}`);
         }
 
-        return `${key}=${stringifyUnitValue(value as UnitValue)}`;
-      });
+        if (lines.length === 0) {
+          return [];
+        }
 
-      if (lines.length === 0) {
-        return [];
-      }
+        return [`[${sectionName}]`, ...lines, ``];
+      })
+      .join(`\n`);
 
-      return [`[${sectionName}]`, ...lines, ``];
-    })
-    .join(`\n`);
-
-  return renderedSections.endsWith(`\n`) ? renderedSections : `${renderedSections}\n`;
+    return {
+      ok: true,
+      value: renderedSections.endsWith(`\n`) ? renderedSections : `${renderedSections}\n`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error as ExecutableInferenceError,
+    };
+  }
 }
 
 export function shellQuote(value: string): string {
@@ -241,38 +273,67 @@ function hasTimerSection(
   return `timer` in options;
 }
 
-function assertAbsoluteExecValue(key: ExecDirectiveKey, value: unknown): void {
+function assertAbsoluteExecValue(
+  key: ExecDirectiveKey,
+  value: unknown,
+): Result<void, InvalidExecDirectiveError> {
   if (isUnitValueList(value)) {
     for (const entry of value) {
-      assertAbsoluteExecEntry(key, entry);
+      const validation = assertAbsoluteExecEntry(key, entry);
+      if (!validation.ok) {
+        return validation;
+      }
     }
 
-    return;
+    return {
+      ok: true,
+      value: undefined,
+    };
   }
 
-  assertAbsoluteExecEntry(key, value as UnitValue | undefined);
+  return assertAbsoluteExecEntry(key, value as UnitValue | undefined);
 }
 
-function assertAbsoluteExecEntry(key: ExecDirectiveKey, value: UnitValue | undefined): void {
+function assertAbsoluteExecEntry(
+  key: ExecDirectiveKey,
+  value: UnitValue | undefined,
+): Result<void, InvalidExecDirectiveError> {
   if (typeof value === `string` && value.length > 0 && !isAbsoluteExecCommand(value)) {
-    throw new InvalidExecDirectiveError(key);
+    return {
+      ok: false,
+      error: new InvalidExecDirectiveError(key),
+    };
   }
 
   if (value instanceof Executable && !value.runtimeEntrypoint.startsWith(`/`)) {
-    throw new InvalidExecDirectiveError(key);
+    return {
+      ok: false,
+      error: new InvalidExecDirectiveError(key),
+    };
   }
+
+  return {
+    ok: true,
+    value: undefined,
+  };
 }
 
-function stringifyUnitValue(value: UnitValue): string {
+function stringifyUnitValue(value: UnitValue): Result<string, ExecutableInferenceError> {
   if (value instanceof Executable) {
     return value.toExecStart();
   }
 
   if (typeof value === `boolean`) {
-    return value ? `true` : `false`;
+    return {
+      ok: true,
+      value: value ? `true` : `false`,
+    };
   }
 
-  return String(value);
+  return {
+    ok: true,
+    value: String(value),
+  };
 }
 
 function isUnitValueList(value: unknown): value is readonly UnitValue[] {

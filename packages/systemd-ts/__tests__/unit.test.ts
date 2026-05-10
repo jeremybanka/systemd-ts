@@ -34,8 +34,13 @@ describe(`systemd-ts unit`, () => {
     });
 
     expect(service.filename).toBe(`backup-db.service`);
-    expect(service.render()).toContain(`[Service]`);
-    expect(service.render()).toContain(`ExecStart=/usr/bin/env node /srv/app/backup.mjs`);
+    const rendered = service.render();
+    expect(rendered.ok).toBe(true);
+    if (!rendered.ok) {
+      throw rendered.error;
+    }
+    expect(rendered.value).toContain(`[Service]`);
+    expect(rendered.value).toContain(`ExecStart=/usr/bin/env node /srv/app/backup.mjs`);
   });
 
   test(`renders a timer unit`, () => {
@@ -52,9 +57,14 @@ describe(`systemd-ts unit`, () => {
     });
 
     expect(timer.filename).toBe(`backup-db.timer`);
-    expect(timer.render()).toContain(`[Timer]`);
-    expect(timer.render()).toContain(`Unit=backup-db.service`);
-    expect(timer.render()).toContain(`Persistent=true`);
+    const rendered = timer.render();
+    expect(rendered.ok).toBe(true);
+    if (!rendered.ok) {
+      throw rendered.error;
+    }
+    expect(rendered.value).toContain(`[Timer]`);
+    expect(rendered.value).toContain(`Unit=backup-db.service`);
+    expect(rendered.value).toContain(`Persistent=true`);
   });
 
   test(`tracks implicit and explicit timer attachment targets`, () => {
@@ -104,7 +114,10 @@ describe(`systemd-ts unit`, () => {
       },
     });
 
-    expect(() => service.render()).toThrow(InvalidExecDirectiveError);
+    expect(service.render()).toMatchObject({
+      ok: false,
+      error: expect.any(InvalidExecDirectiveError),
+    });
   });
 
   test(`accepts absolute exec paths with documented systemd prefixes`, () => {
@@ -119,9 +132,13 @@ describe(`systemd-ts unit`, () => {
       },
     });
 
-    expect(() => service.render()).not.toThrow();
-    expect(service.render()).toContain(`ExecStart=!!:/usr/bin/env node /srv/app/start.mjs`);
-    expect(service.render()).toContain(`ExecStartPre=-!@/usr/bin/printf preparing`);
+    const rendered = service.render();
+    expect(rendered.ok).toBe(true);
+    if (!rendered.ok) {
+      throw rendered.error;
+    }
+    expect(rendered.value).toContain(`ExecStart=!!:/usr/bin/env node /srv/app/start.mjs`);
+    expect(rendered.value).toContain(`ExecStartPre=-!@/usr/bin/printf preparing`);
   });
 
   test(`defaults system scope to the canonical unit directory`, () => {
@@ -141,7 +158,12 @@ describe(`systemd-ts unit`, () => {
       },
     });
 
-    expect(service.render()).toContain(
+    const rendered = service.render();
+    expect(rendered.ok).toBe(true);
+    if (!rendered.ok) {
+      throw rendered.error;
+    }
+    expect(rendered.value).toContain(
       `ExecStart='/usr/local/bin/node' '/srv/app/jobs/backup.ts' '--flag' 'value'`,
     );
   });

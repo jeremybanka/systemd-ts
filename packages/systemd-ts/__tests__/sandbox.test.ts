@@ -199,15 +199,20 @@ describe(`systemd-ts sandbox`, () => {
       throw result.error;
     }
     const materializedService = await readFile(systemd.pathFor(service), `utf8`);
+    const execStart = executable.toExecStart();
+    expect(execStart.ok).toBe(true);
+    if (!execStart.ok) {
+      throw execStart.error;
+    }
 
-    expect(materializedService).toContain(`ExecStart=${executable.toExecStart()}`);
+    expect(materializedService).toContain(`ExecStart=${execStart.value}`);
     expect(materializedService).toContain(`Environment=SYSTEMD_TS_MARKER_FILE=${markerFile}`);
     expect(
       await runGuestCommand(`test -x ${shellQuote(executable.runtimeEntrypoint)} && echo ok`),
     ).toContain(`ok`);
 
     await runGuestCommand(
-      `SYSTEMD_TS_MARKER_FILE=${shellQuote(markerFile)} ${executable.toExecStart()}`,
+      `SYSTEMD_TS_MARKER_FILE=${shellQuote(markerFile)} ${execStart.value}`,
     );
 
     expect(await runGuestCommand(`cat ${shellQuote(markerFile)}`)).toBe(`ran`);
