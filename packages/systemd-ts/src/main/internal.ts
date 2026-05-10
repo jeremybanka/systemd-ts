@@ -2,9 +2,12 @@ import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
 import { promisify } from "node:util";
 
+import {
+  InvalidExecDirectiveError,
+  NotifySendError,
+} from "./errors.ts";
 import { Executable } from "./executable.ts";
 import type {
-  AnySystemdService,
   CommandResult,
   NotifyOptions,
   SystemdServiceSection,
@@ -14,8 +17,6 @@ import type {
   SystemdUnit,
   UnitValue,
 } from "./types.ts";
-import { SystemdService } from "./systemd-service.ts";
-import { SystemdTimer } from "./systemd-timer.ts";
 
 type ExecDirectiveKey = (typeof EXEC_DIRECTIVE_KEYS)[number];
 
@@ -86,30 +87,6 @@ export function cloneUnitSection<TSection extends SectionLike | undefined>(
 export function validateServiceSection(service: SystemdServiceSection): void {
   for (const key of EXEC_DIRECTIVE_KEYS) {
     assertAbsoluteExecValue(key, service[key]);
-  }
-}
-
-export function assertInstallableTogether(units: readonly SystemdUnit[]): void {
-  const materializedServices = new Set(
-    units
-      .filter((unit): unit is AnySystemdService => unit instanceof SystemdService)
-      .map((unit) => unit.name),
-  );
-
-  if (materializedServices.size === 0) {
-    return;
-  }
-
-  for (const unit of units) {
-    if (!(unit instanceof SystemdTimer)) {
-      continue;
-    }
-
-    if (!materializedServices.has(unit.targetServiceName)) {
-      throw new Error(
-        `Cannot materialize ${unit.filename} alongside unrelated services: expected ${unit.targetUnit}`,
-      );
-    }
   }
 }
 
@@ -211,18 +188,36 @@ export async function sendNotify(
 
   if (options.executor !== undefined) {
     const command = buildNotifyShellCommand(args, options.socketPath);
-    await options.executor(`bash`, [`-lc`, command]);
+    try {
+      await options.executor(`bash`, [`-lc`, command]);
+    } catch (cause) {
+      throw new NotifySendError(`Failed to send systemd notification through the configured executor`, {
+        args: [`-lc`, command],
+        cause,
+        command: `bash`,
+        stage: `executor`,
+      });
+    }
     return;
   }
 
-  const result = await execFileAsync(`systemd-notify`, args, {
-    env: {
-      ...process.env,
-      ...(options.socketPath === undefined ? {} : { NOTIFY_SOCKET: options.socketPath }),
-    },
-  });
+  try {
+    const result = await execFileAsync(`systemd-notify`, args, {
+      env: {
+        ...process.env,
+        ...(options.socketPath === undefined ? {} : { NOTIFY_SOCKET: options.socketPath }),
+      },
+    });
 
-  void result;
+    void result;
+  } catch (cause) {
+    throw new NotifySendError(`Failed to send systemd notification with systemd-notify`, {
+      args,
+      cause,
+      command: `systemd-notify`,
+      stage: `systemd-notify`,
+    });
+  }
 }
 
 function hasServiceSection(
@@ -251,11 +246,11 @@ function assertAbsoluteExecValue(key: ExecDirectiveKey, value: unknown): void {
 
 function assertAbsoluteExecEntry(key: ExecDirectiveKey, value: UnitValue | undefined): void {
   if (typeof value === `string` && value.length > 0 && !isAbsoluteExecCommand(value)) {
-    throw new Error(`${key} must use an absolute executable path for systemd`);
+    throw new InvalidExecDirectiveError(key);
   }
 
   if (value instanceof Executable && !value.runtimeEntrypoint.startsWith(`/`)) {
-    throw new Error(`${key} must use an absolute executable path for systemd`);
+    throw new InvalidExecDirectiveError(key);
   }
 }
 

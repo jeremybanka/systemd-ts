@@ -51,8 +51,9 @@ const systemd = new Systemd({
 
 const materialized = await systemd.materialize(service, timer);
 
-console.log(materialized.pathFor(service));
-console.log(materialized.pathFor(timer));
+console.log(systemd.pathFor(service));
+console.log(systemd.pathFor(timer));
+console.log(materialized.materialized);
 
 await systemd.enable(timer);
 await systemd.start(timer);

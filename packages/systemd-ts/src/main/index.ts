@@ -1,3 +1,14 @@
+export {
+  ExecutableInferenceError,
+  InvalidExecDirectiveError,
+  NoUnitsProvidedError,
+  NotifySendError,
+  SystemdTsError,
+  UnitEnableError,
+  UnitLogsReadError,
+  UnitMaterializationError,
+  UnitStartError,
+} from "./errors.ts";
 export { Executable, defineExecutable } from "./executable.ts";
 export { notify } from "./notify.ts";
 export { SystemdService } from "./systemd-service.ts";
@@ -9,7 +20,7 @@ export type {
   CommandExecutor,
   CommandResult,
   ExecutableOptions,
-  InstalledUnit,
+  MaterializedUnit,
   LogsOptions,
   NotifyOptions,
   ServiceBaseName,

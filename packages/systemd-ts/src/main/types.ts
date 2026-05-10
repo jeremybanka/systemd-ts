@@ -1086,7 +1086,7 @@ export type AnySystemdService = SystemdService<SystemdServiceOptions>;
 export type AnySystemdTimer = SystemdTimer<SystemdTimerOptions>;
 export type SystemdUnit = AnySystemdService | AnySystemdTimer;
 
-export interface InstalledUnit<TUnit extends SystemdUnit = SystemdUnit> {
+export interface MaterializedUnit<TUnit extends SystemdUnit = SystemdUnit> {
   readonly path: string;
   readonly unit: TUnit;
 }

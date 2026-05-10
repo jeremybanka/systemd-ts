@@ -10,6 +10,8 @@ import {
   Systemd,
   SystemdService,
   SystemdTimer,
+  UnitLogsReadError,
+  UnitStartError,
   notify,
   type CommandResult,
 } from "../src/main/index.ts";
@@ -87,18 +89,23 @@ describe(`systemd-ts sandbox`, () => {
     chronicle?.mark(`test:materialize-finished`);
 
     expect(result.directory).toBe(sandbox.linkedUnitDir);
-    expect(result.pathFor(service)).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.service`);
-    expect(result.pathFor(timer)).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.timer`);
+    const servicePath = systemd.pathFor(service);
+    const timerPath = systemd.pathFor(timer);
+    expect(servicePath).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.service`);
+    expect(timerPath).toBe(`${sandbox.linkedUnitDir}/${sandbox.namePrefix}.timer`);
     expect(sandbox.namePrefix).toContain(`systemd-ts-`);
 
     const guestFiles = await runGuestCommand(
-      `test -f '${result.pathFor(service)}' && test -f '${result.pathFor(timer)}' && echo ok`,
+      `test -f '${servicePath}' && test -f '${timerPath}' && echo ok`,
     );
     chronicle?.mark(`test:guest-path-check-finished`);
     expect(guestFiles).toContain(`ok`);
 
-    const materializedService = await readFile(result.pathFor(service), `utf8`);
-    const materializedTimer = await readFile(result.pathFor(timer), `utf8`);
+    expect(result.materialized).toContainEqual({ path: servicePath, unit: service });
+    expect(result.materialized).toContainEqual({ path: timerPath, unit: timer });
+
+    const materializedService = await readFile(servicePath, `utf8`);
+    const materializedTimer = await readFile(timerPath, `utf8`);
     chronicle?.mark(`test:host-read-finished`);
 
     expect(materializedService).toContain(`[Service]`);
@@ -153,7 +160,11 @@ describe(`systemd-ts sandbox`, () => {
       },
     });
 
-    await expect(systemd.start(service)).rejects.toThrow(service.filename);
+    await expect(systemd.start(service)).rejects.toMatchObject({
+      command: `systemctl`,
+      stage: `link`,
+      unitName: service.filename,
+    } satisfies Partial<UnitStartError>);
   });
 
   test(`runs an executable-backed service command inside the sandbox`, async () => {
@@ -174,7 +185,7 @@ describe(`systemd-ts sandbox`, () => {
     });
 
     const result = await systemd.materialize(service);
-    const materializedService = await readFile(result.pathFor(service), `utf8`);
+    const materializedService = await readFile(systemd.pathFor(service), `utf8`);
 
     expect(materializedService).toContain(`ExecStart=${executable.toExecStart()}`);
     expect(materializedService).toContain(`Environment=SYSTEMD_TS_MARKER_FILE=${markerFile}`);
@@ -225,7 +236,11 @@ describe(`systemd-ts sandbox`, () => {
 
     await systemd.materialize(service);
 
-    await expect(systemd.start(service)).rejects.toThrow(service.filename);
+    await expect(systemd.start(service)).rejects.toMatchObject({
+      command: `systemctl`,
+      stage: `start`,
+      unitName: service.filename,
+    } satisfies Partial<UnitStartError>);
 
     const status = parseSystemctlShow(
       await runGuestCommand(
@@ -273,12 +288,36 @@ describe(`systemd-ts sandbox`, () => {
     });
 
     await systemd.materialize(service);
-    await expect(systemd.start(service)).rejects.toThrow(service.filename);
+    await expect(systemd.start(service)).rejects.toMatchObject({
+      command: `systemctl`,
+      stage: `start`,
+      unitName: service.filename,
+    } satisfies Partial<UnitStartError>);
 
     const logs = await systemd.logs(service, { lines: 20 });
     expect(logs).toContain(service.filename);
     expect(logs).toContain(`failed`);
     expect(logs).toContain(`23`);
+  });
+
+  test(`wraps missing file-backed logs in a named error`, async () => {
+    const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
+    const missingLogFile = `${sandbox.workDir}/missing.log`;
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
+      service: {
+        Type: `oneshot`,
+        StandardOutput: `append:${missingLogFile}`,
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+
+    await expect(systemd.logs(service)).rejects.toMatchObject({
+      stage: `read-log-file`,
+      unitName: service.filename,
+      unitPath: missingLogFile,
+    } satisfies Partial<UnitLogsReadError>);
   });
 
   test(`signals READY=1 from a notify service process`, () => {

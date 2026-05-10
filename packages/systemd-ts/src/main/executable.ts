@@ -1,6 +1,7 @@
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { ExecutableInferenceError } from "./errors.ts";
 import type { ExecutableOptions } from "./types.ts";
 
 const currentModulePath = fileURLToPath(import.meta.url);
@@ -109,9 +110,7 @@ function inferCallerModulePath(): string {
     return candidate;
   }
 
-  throw new Error(
-    `Could not infer the calling module path for defineExecutable(); pass { modulePath } explicitly`,
-  );
+  throw new ExecutableInferenceError();
 }
 
 function extractStackPath(line: string): string | undefined {

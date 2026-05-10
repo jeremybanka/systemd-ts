@@ -6,7 +6,14 @@ import { promisify } from "node:util";
 
 import { describe, expect, test } from "vite-plus/test";
 
-import { Executable, Systemd, SystemdService, SystemdTimer } from "../src/main/index.ts";
+import {
+  Executable,
+  InvalidExecDirectiveError,
+  NoUnitsProvidedError,
+  Systemd,
+  SystemdService,
+  SystemdTimer,
+} from "../src/main/index.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -97,7 +104,7 @@ describe(`systemd-ts unit`, () => {
       },
     });
 
-    expect(() => service.render()).toThrow(/absolute executable path/u);
+    expect(() => service.render()).toThrow(InvalidExecDirectiveError);
   });
 
   test(`accepts absolute exec paths with documented systemd prefixes`, () => {
@@ -155,6 +162,55 @@ describe(`systemd-ts unit`, () => {
     } finally {
       await rm(fixtureDir, { force: true, recursive: true });
     }
+  });
+
+  test(`rejects empty materialize and enable operations with a named error`, async () => {
+    const systemd = new Systemd({
+      unitDir: `/tmp/systemd-ts-empty`,
+    });
+
+    await expect(systemd.materialize()).rejects.toBeInstanceOf(NoUnitsProvidedError);
+    await expect(systemd.enable()).rejects.toBeInstanceOf(NoUnitsProvidedError);
+  });
+
+  test(`allows mismatched timer and service groups at runtime because the type system already guards this`, async () => {
+    const systemd = new Systemd({
+      unitDir: `/tmp/systemd-ts-mismatch`,
+    });
+    const service = new SystemdService({
+      name: `cleanup-db`,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+    const timer = new SystemdTimer({
+      name: `nightly-backup`,
+      timer: {
+        OnCalendar: `daily`,
+        Unit: `backup-db.service`,
+      },
+    });
+
+    // @ts-expect-error mismatched timers and services are a type "warning", but not a runtime error
+    await expect(systemd.materialize(service, timer)).resolves.toMatchObject({
+      directory: `/tmp/systemd-ts-mismatch`,
+    });
+  });
+
+  test(`reports written paths through the materialized entries and systemd.pathFor()`, async () => {
+    const systemd = new Systemd({
+      unitDir: `/tmp/systemd-ts-paths`,
+    });
+    const backup = new SystemdService({
+      name: `backup-db`,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+    const result = await systemd.materialize(backup);
+    expect(result.materialized).toHaveLength(1);
+    expect(result.materialized[0]?.unit).toBe(backup);
+    expect(result.materialized[0]?.path).toBe(systemd.pathFor(backup));
   });
 });
 
