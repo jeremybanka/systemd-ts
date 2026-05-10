@@ -2,7 +2,6 @@ import type { Executable } from "./executable.ts";
 import type { SystemdService } from "./systemd-service.ts";
 import type { SystemdTimer } from "./systemd-timer.ts";
 
-export type ScalarDirectiveValue = string | number | boolean;
 export type UnitActionDirectiveValue =
   | "none"
   | "reboot"
@@ -118,11 +117,8 @@ export type StandardOutputDirectiveValue =
   | `truncate:${string}`
   | `fd:${string}`;
 export type StandardErrorDirectiveValue = StandardOutputDirectiveValue | "inherit";
-export type ExecutableDirectiveValue = string | Executable;
-export type ExecutableDirectiveValues =
-  | ExecutableDirectiveValue
-  | readonly ExecutableDirectiveValue[];
-export type UnitValue = ScalarDirectiveValue | Executable;
+export type ExecDirective = string | Executable | readonly (string | Executable)[];
+export type UnitValue = string | number | boolean | Executable;
 export type UnitValueList = readonly UnitValue[];
 export type UnitSectionValue = UnitValue | UnitValueList | undefined;
 
@@ -521,25 +517,25 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   /** Similar to Environment=, but reads the environment variables from a text file. The text file should contain newline-separated variable assignments. Empty lines, lines without an = separator, or lines starting with ; or # will be ignored, which may be used for commenting. The file must be encoded with UTF-8. Valid characters are unicode scalar values other than unicode noncharacters, U+0000 NUL, and U+FEFF unicode byte order mark. Control codes other than NUL are allowed. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly EnvironmentFile?: string | readonly string[];
   /** Optional commands that are executed before the commands in ExecStartPre=. Syntax is the same as for ExecStart=. Multiple command lines are allowed, regardless of the service type (i.e. Type=), and the commands are executed one after the other, serially. Source: systemd v260.1, `systemd.service(5)`. */
-  readonly ExecCondition?: ExecutableDirectiveValues;
+  readonly ExecCondition?: ExecDirective;
   /** Paths from which execution is explicitly allowed when `NoExecPaths=` is used. Source: systemd v260.1, `systemd.exec(5)`. */
-  readonly ExecPaths?: ExecutableDirectiveValues;
+  readonly ExecPaths?: string | readonly string[];
   /** Commands to execute to trigger a configuration reload in the service. This setting may take multiple command lines, following the same scheme as described for ExecStart= above. Use of this setting is optional. Specifier and environment variable substitution is supported here following the same scheme as for ExecStart=. Source: systemd v260.1, `systemd.service(5)`. */
-  readonly ExecReload?: ExecutableDirectiveValues;
+  readonly ExecReload?: ExecDirective;
   /** Commands to execute after a successful reload operation. Syntax for this setting is exactly the same as ExecReload=. Source: systemd v260.1, `systemd.service(5)`. */
-  readonly ExecReloadPost?: ExecutableDirectiveValues;
+  readonly ExecReloadPost?: ExecDirective;
   /** Takes a colon separated list of absolute paths relative to which the executable used by the Exec*= (e.g. ExecStart=, ExecStop=, etc.) properties can be found. Overrides $PATH if $PATH is not supplied by the user through Environment=, EnvironmentFile= or PassEnvironment=. Assigning an empty string removes previous assignments and setting ExecSearchPath= to a value multiple times will append to the previous setting. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly ExecSearchPath?: string | readonly string[];
   /** Commands that are executed when this service is started. Source: systemd v260.1, `systemd.service(5)`. */
-  readonly ExecStart?: ExecutableDirectiveValues;
+  readonly ExecStart?: ExecDirective;
   /** Additional commands that are executed before or after the command in ExecStart=, respectively. Syntax is the same as for ExecStart=. Multiple command lines are allowed, regardless of the service type (i.e. Type=), and the commands are executed one after the other, serially. Source: systemd v260.1, `systemd.service(5)`. */
-  readonly ExecStartPost?: ExecutableDirectiveValues;
+  readonly ExecStartPost?: ExecDirective;
   /** Additional commands that are executed before or after the command in ExecStart=, respectively. Syntax is the same as for ExecStart=. Multiple command lines are allowed, regardless of the service type (i.e. Type=), and the commands are executed one after the other, serially. Source: systemd v260.1, `systemd.service(5)`. */
-  readonly ExecStartPre?: ExecutableDirectiveValues;
+  readonly ExecStartPre?: ExecDirective;
   /** Commands to execute to stop the service started via ExecStart=. This argument takes multiple command lines, following the same scheme as described for ExecStart= above. Use of this setting is optional. After the commands configured in this option are run, it is implied that the service is stopped, and any processes remaining for it are terminated according to the KillMode= setting (see systemd.kill5). If this option is not specified, the process is terminated by sending the signal specified in KillSignal= or RestartKillSignal= when service stop is requested. Specifier and environment variable substitution is supported (including $MAINPID, see above). Source: systemd v260.1, `systemd.service(5)`. */
-  readonly ExecStop?: ExecutableDirectiveValues;
+  readonly ExecStop?: ExecDirective;
   /** Additional commands that are executed after the service is stopped. This includes cases where the commands configured in ExecStop= were used, where the service does not have any ExecStop= defined, or where the service exited unexpectedly. This argument takes multiple command lines, following the same scheme as described for ExecStart=. Use of these settings is optional. Specifier and environment variable substitution is supported. Note that – unlike ExecStop= – commands specified with this setting are invoked when a service failed to start up correctly and is shut down again. Source: systemd v260.1, `systemd.service(5)`. */
-  readonly ExecStopPost?: ExecutableDirectiveValues;
+  readonly ExecStopPost?: ExecDirective;
   /** Specifies when the manager should consider the service to be finished. One of main or cgroup:. Source: systemd v260.1, `systemd.service(5)`. */
   readonly ExitType?: ServiceExitTypeDirectiveValue;
   /** This setting is similar to BindReadOnlyPaths= in that it mounts a file system hierarchy from a directory, but instead of providing a destination path, an overlay will be set up. This option expects a whitespace separated list of source directories. Source: systemd v260.1, `systemd.exec(5)`. */
