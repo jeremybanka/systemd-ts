@@ -90,13 +90,13 @@ export function validateServiceSection(service: SystemdServiceSection): void {
 }
 
 export function assertInstallableTogether(units: readonly SystemdUnit[]): void {
-  const installedServices = new Set(
+  const materializedServices = new Set(
     units
       .filter((unit): unit is AnySystemdService => unit instanceof SystemdService)
       .map((unit) => unit.name),
   );
 
-  if (installedServices.size === 0) {
+  if (materializedServices.size === 0) {
     return;
   }
 
@@ -105,9 +105,9 @@ export function assertInstallableTogether(units: readonly SystemdUnit[]): void {
       continue;
     }
 
-    if (!installedServices.has(unit.targetServiceName)) {
+    if (!materializedServices.has(unit.targetServiceName)) {
       throw new Error(
-        `Cannot install ${unit.filename} alongside unrelated services: expected ${unit.targetUnit}`,
+        `Cannot materialize ${unit.filename} alongside unrelated services: expected ${unit.targetUnit}`,
       );
     }
   }

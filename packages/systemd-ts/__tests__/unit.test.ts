@@ -187,10 +187,10 @@ function assertTypeRelationships(): void {
       ExecStart: `/usr/bin/true`,
     },
   });
-  void systemd.install(attachedService, attachedTimer);
-  void systemd.install(attachedService, implicitTimer);
+  void systemd.materialize(attachedService, attachedTimer);
+  void systemd.materialize(attachedService, implicitTimer);
   // @ts-expect-error mismatched timers and services should be rejected when both are present
-  void systemd.install(mismatchedService, attachedTimer);
+  void systemd.materialize(mismatchedService, attachedTimer);
 
   void new SystemdTimer({
     name: `typo-timer`,

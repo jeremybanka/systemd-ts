@@ -22,30 +22,32 @@ import type {
 } from "./types.ts";
 
 /**
- * The result of installing one or more units with {@link Systemd.install}.
+ * The result of materializing one or more units with {@link Systemd.materialize}.
  *
- * It records the installation directory and the on-disk path associated with
- * each installed unit.
+ * It records the target directory and the on-disk path associated with each
+ * materialized unit.
  */
-export class SystemdInstallResult<TUnits extends readonly SystemdUnit[] = readonly SystemdUnit[]> {
+export class SystemdMaterializeResult<
+  TUnits extends readonly SystemdUnit[] = readonly SystemdUnit[],
+> {
   /** The directory units were written into. */
   public readonly directory: string;
-  /** The installed units together with their resolved on-disk paths. */
-  public readonly installed: readonly InstalledUnit<TUnits[number]>[];
+  /** The materialized units together with their resolved on-disk paths. */
+  public readonly materialized: readonly InstalledUnit<TUnits[number]>[];
   private readonly pathByFilename: ReadonlyMap<string, string>;
 
-  public constructor(directory: string, installed: readonly InstalledUnit<TUnits[number]>[]) {
+  public constructor(directory: string, materialized: readonly InstalledUnit<TUnits[number]>[]) {
     this.directory = directory;
-    this.installed = Object.freeze([...installed]);
-    this.pathByFilename = new Map(installed.map((entry) => [entry.unit.filename, entry.path]));
+    this.materialized = Object.freeze([...materialized]);
+    this.pathByFilename = new Map(materialized.map((entry) => [entry.unit.filename, entry.path]));
     Object.freeze(this);
   }
 
-  /** Returns the installed on-disk path for a previously installed unit. */
+  /** Returns the on-disk path for a previously materialized unit. */
   public pathFor(unit: TUnits[number]): string {
     const path = this.pathByFilename.get(unit.filename);
     if (path === undefined) {
-      throw new Error(`No installed path is recorded for ${unit.filename}`);
+      throw new Error(`No materialized path is recorded for ${unit.filename}`);
     }
 
     return path;
@@ -91,34 +93,20 @@ export class Systemd {
    * Renders and writes one or more units into this instance's `unitDir`.
    *
    * This is intentionally a file-materialization step. It does not enable or
-   * start the units on its own. When both timers and services are installed
+   * start the units on its own. When both timers and services are materialized
    * together, compile-time and runtime attachment checks ensure the timer points
    * at one of the accompanying services.
    */
-  public async install<const TUnits extends readonly SystemdUnit[]>(
+  public async materialize<const TUnits extends readonly SystemdUnit[]>(
     ...units: TUnits & ValidInstallUnits<TUnits>
-  ): Promise<SystemdInstallResult<TUnits>> {
-    if (units.length === 0) {
-      throw new Error(`Systemd.install() requires at least one service or timer`);
-    }
-
-    assertInstallableTogether(units);
-    await writeUnitDirectory(this.unitDir);
-
-    const installed: InstalledUnit<TUnits[number]>[] = [];
-    for (const unit of units) {
-      const path = join(this.unitDir, unit.filename);
-      await writeFile(path, unit.render(), `utf8`);
-      installed.push({ path, unit });
-    }
-
-    return new SystemdInstallResult<TUnits>(this.unitDir, installed);
+  ): Promise<SystemdMaterializeResult<TUnits>> {
+    return this.materializeUnits(units);
   }
 
   /**
    * Enables one or more units via `systemctl enable`.
    *
-   * When `linkUnits` is enabled, this first links installed unit files into the
+   * When `linkUnits` is enabled, this first links materialized unit files into the
    * target manager and reloads systemd so the units are visible before the
    * enable operation runs.
    */
@@ -227,6 +215,26 @@ export class Systemd {
     }
 
     return [...paths];
+  }
+
+  private async materializeUnits<const TUnits extends readonly SystemdUnit[]>(
+    units: TUnits & ValidInstallUnits<TUnits>,
+  ): Promise<SystemdMaterializeResult<TUnits>> {
+    if (units.length === 0) {
+      throw new Error(`Systemd.materialize() requires at least one service or timer`);
+    }
+
+    assertInstallableTogether(units);
+    await writeUnitDirectory(this.unitDir);
+
+    const materialized: InstalledUnit<TUnits[number]>[] = [];
+    for (const unit of units) {
+      const path = join(this.unitDir, unit.filename);
+      await writeFile(path, unit.render(), `utf8`);
+      materialized.push({ path, unit });
+    }
+
+    return new SystemdMaterializeResult<TUnits>(this.unitDir, materialized);
   }
 }
 
