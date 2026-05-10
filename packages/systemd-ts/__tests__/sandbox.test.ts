@@ -257,7 +257,8 @@ describe(`systemd-ts sandbox`, () => {
     });
 
     expect(await systemd.materialize(service)).toMatchObject({ ok: true });
-    expect(await systemd.start(service)).toMatchObject({
+    const started = await systemd.start(service);
+    expect(started).toMatchObject({
       ok: false,
       error: {
         command: `systemctl`,
@@ -265,6 +266,15 @@ describe(`systemd-ts sandbox`, () => {
         unitName: service.filename,
       } satisfies Partial<UnitStartError>,
     });
+    if (started.ok) {
+      throw new Error(`Expected start() to fail`);
+    }
+    expect(started.error.diagnostics?.showStatus?.unit).toBe(service.filename);
+    expect(started.error.diagnostics?.showStatus?.activeState).toBe(`failed`);
+    expect(started.error.diagnostics?.showStatus?.subState).toBe(`failed`);
+    expect(started.error.diagnostics?.showStatus?.result).toBe(`exit-code`);
+    expect(started.error.diagnostics?.showStatus?.execMainStatus).toBe(17);
+    expect(started.error.diagnostics?.statusOutput).toContain(service.filename);
 
     const status = parseSystemctlShow(
       await runGuestCommand(

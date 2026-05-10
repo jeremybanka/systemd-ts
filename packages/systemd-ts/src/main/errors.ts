@@ -1,3 +1,5 @@
+import type { StartStatus } from "./types.ts";
+
 export type SystemdTsErrorCode =
   | `SYSTEMD_TS_INVALID_EXEC_DIRECTIVE`
   | `SYSTEMD_TS_NO_UNITS_PROVIDED`
@@ -17,6 +19,16 @@ export interface SystemdCommandErrorOptions extends SystemdTsErrorOptions {
   readonly command?: string;
   readonly stage?: string;
   readonly unitName?: string;
+}
+
+export interface UnitStartDiagnostics {
+  readonly showOutput?: string;
+  readonly showStatus?: StartStatus;
+  readonly statusOutput?: string;
+}
+
+export interface UnitStartErrorOptions extends SystemdCommandErrorOptions {
+  readonly diagnostics?: UnitStartDiagnostics;
 }
 
 export interface UnitMaterializationErrorOptions extends SystemdTsErrorOptions {
@@ -117,17 +129,19 @@ export class UnitEnableError extends SystemdTsError {
 export class UnitStartError extends SystemdTsError {
   public readonly args: readonly string[] | undefined;
   public readonly command: string | undefined;
+  public readonly diagnostics: UnitStartDiagnostics | undefined;
   public readonly exitCode: number | undefined;
   public readonly stage: string | undefined;
   public readonly stderr: string | undefined;
   public readonly stdout: string | undefined;
   public readonly unitName: string | undefined;
 
-  public constructor(message: string, options: SystemdCommandErrorOptions = {}) {
+  public constructor(message: string, options: UnitStartErrorOptions = {}) {
     super(`SYSTEMD_TS_UNIT_START`, message, options);
     const details = extractCommandErrorDetails(options.cause);
     this.args = options.args;
     this.command = options.command;
+    this.diagnostics = options.diagnostics;
     this.exitCode = details.exitCode;
     this.stage = options.stage;
     this.stderr = details.stderr;

@@ -176,6 +176,7 @@ export class Systemd {
       return err(
         new UnitStartError(`Failed to prepare ${unit.filename} for start`, {
           cause,
+          diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
           stage: `prepare`,
           unitName: unit.filename,
         }),
@@ -191,6 +192,7 @@ export class Systemd {
           args: startArgs,
           cause,
           command: `systemctl`,
+          diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
           stage: `start`,
           unitName: unit.filename,
         }),
@@ -212,6 +214,7 @@ export class Systemd {
           args: statusArgs,
           cause,
           command: `systemctl`,
+          diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
           stage: `show-status`,
           unitName: unit.filename,
         }),
@@ -343,6 +346,54 @@ export class Systemd {
     return this.scope === `user` ? [`--user`] : [];
   }
 
+  private async collectStartDiagnostics(
+    scopeArgs: readonly string[],
+    unitName: string,
+  ): Promise<{
+    readonly showOutput?: string;
+    readonly showStatus?: StartStatus;
+    readonly statusOutput?: string;
+  }> {
+    const diagnostics: {
+      showOutput?: string;
+      showStatus?: StartStatus;
+      statusOutput?: string;
+    } = {};
+
+    const showCommand = [
+      `systemctl`,
+      ...scopeArgs,
+      `show`,
+      unitName,
+      `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
+    ]
+      .map(shellQuote)
+      .join(` `);
+    const show = await this.tryBestEffortCommand(`bash`, [`-lc`, `${showCommand} 2>&1 || true`]);
+    if (show !== undefined && show.length > 0) {
+      diagnostics.showOutput = show;
+      diagnostics.showStatus = parseStartStatus(unitName, show);
+    }
+
+    const statusCommand = [
+      `systemctl`,
+      ...scopeArgs,
+      `status`,
+      unitName,
+      `--no-pager`,
+      `--lines`,
+      `20`,
+    ]
+      .map(shellQuote)
+      .join(` `);
+    const status = await this.tryBestEffortCommand(`bash`, [`-lc`, `${statusCommand} 2>&1 || true`]);
+    if (status !== undefined && status.length > 0) {
+      diagnostics.statusOutput = status;
+    }
+
+    return diagnostics;
+  }
+
   private async collectLinkPaths(units: readonly SystemdUnit[]): Promise<readonly string[]> {
     const paths = new Set<string>();
 
@@ -414,6 +465,18 @@ export class Systemd {
     }
 
     return ok(new SystemdMaterialization<TUnits>(this.unitDir, materialized));
+  }
+
+  private async tryBestEffortCommand(
+    command: string,
+    args: readonly string[],
+  ): Promise<string | undefined> {
+    try {
+      const output = await this.executor(command, args);
+      return output.stdout;
+    } catch {
+      return undefined;
+    }
   }
 }
 
