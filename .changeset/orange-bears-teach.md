@@ -11,7 +11,7 @@ new SystemdTimer({
   name: "backup-db",
   timer: {
     OnCalendar: "daily",
-    Persistant: true,
+    Persistant: true, // ❌ TS2322: Type 'true' is not assignable to type 'never'.
   },
 });
 ```
