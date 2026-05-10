@@ -12,6 +12,11 @@ timers from application code.
 - `mise` manages `node`, `pnpm`, and `viteplus`
 - `vp` drives install, format, lint, typecheck, test, and build
 
+## Upstream Tracking
+
+- `systemd.version` contains the latest stable upstream `systemd` release version
+- Renovate watches `systemd/systemd` GitHub releases and updates that file hourly
+
 ## Commands
 
 ```bash
