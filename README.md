@@ -3,9 +3,12 @@
 A TypeScript-first toolkit for creating and managing `systemd` services and
 timers from application code.
 
+Usage instructions and examples live in
+[`packages/systemd-ts/`](./packages/systemd-ts).
+
 ## Workspace
 
-- `packages/systemd-ts`: the publishable library
+- [`packages/systemd-ts/`](./packages/systemd-ts): the publishable library
 
 ## Toolchain
 
