@@ -982,15 +982,6 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly WorkingDirectory?: string;
 }
 
-/**
- * @deprecated Use one of the specific section interfaces instead:
- * `SystemdUnitSection`, `SystemdInstallSection`, `SystemdServiceSection`, or
- * `SystemdTimerSection`.
- */
-export interface UnitSection {
-  readonly [key: string]: UnitSectionValue;
-}
-
 export interface SystemdServiceOptions {
   readonly install?: SystemdInstallSection;
   readonly name: string;
