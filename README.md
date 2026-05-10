@@ -16,6 +16,7 @@ timers from application code.
 
 - `systemd.version` contains the latest stable upstream `systemd` release version
 - Renovate watches `systemd/systemd` GitHub releases and updates that file hourly
+- PRs that change `systemd.version` must add a matching review record in `compatibility/systemd/`
 
 ## Commands
 

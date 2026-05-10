@@ -1,0 +1,60 @@
+name: Systemd Compatibility
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  CompatibilityRecord:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - uses: actions/checkout@v6.0.2
+        with:
+          fetch-depth: 0
+
+      - name: Check systemd compatibility record
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+
+          if ! git diff --quiet "$BASE_SHA" "$HEAD_SHA" -- systemd.version; then
+            version="$(tr -d '\n' < systemd.version)"
+            record_path="compatibility/systemd/${version}.yaml"
+
+            echo "systemd.version changed in this PR"
+            echo "Expected compatibility record: ${record_path}"
+
+            if [[ ! -f "$record_path" ]]; then
+              echo "::error title=Compatibility review required::systemd ${version} has not been reviewed yet. Add ${record_path} with a compatibility decision."
+              exit 1
+            fi
+
+            recorded_version="$(sed -nE 's/^version:[[:space:]]*//p' "$record_path" | head -n1)"
+            recorded_status="$(sed -nE 's/^status:[[:space:]]*//p' "$record_path" | head -n1)"
+
+            if [[ "$recorded_version" != "$version" ]]; then
+              echo "::error title=Version mismatch::${record_path} must declare version: ${version}"
+              exit 1
+            fi
+
+            if [[ "$recorded_status" != "compatible" ]]; then
+              echo "::error title=Compatibility sign-off required::${record_path} must declare status: compatible"
+              exit 1
+            fi
+
+            echo "Compatibility record found for systemd ${version}"
+            exit 0
+          fi
+
+          echo "systemd.version was not changed in this PR"

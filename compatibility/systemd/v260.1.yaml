@@ -1,0 +1,4 @@
+version: v260.1
+status: compatible
+reviewedAt: 2026-05-09
+notes: Initial compatibility baseline for automated upstream systemd tracking.
