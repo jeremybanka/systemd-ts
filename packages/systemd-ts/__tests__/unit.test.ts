@@ -8,7 +8,9 @@ import { describe, expect, test } from "vite-plus/test";
 
 import {
   Executable,
+  ExecutableInferenceError,
   InvalidExecDirectiveError,
+  Internal,
   NoUnitsProvidedError,
   NotifySendError,
   Systemd,
@@ -172,6 +174,31 @@ describe(`systemd-ts unit`, () => {
     expect(rendered.value).toContain(
       `ExecStart='/usr/local/bin/node' '/srv/app/jobs/backup.ts' '--flag' 'value'`,
     );
+  });
+
+  test(`wraps unexpected render failures in an executable inference error with cause`, () => {
+    const cause = new Error(`boom`);
+    const rendered = Internal.renderUnitFile([
+      [
+        `Service`,
+        {
+          ExecStart: {
+            toString() {
+              throw cause;
+            },
+          },
+        },
+      ],
+    ]);
+
+    expect(rendered).toMatchObject({
+      ok: false,
+      error: expect.any(ExecutableInferenceError),
+    });
+    if (rendered.ok) {
+      throw new Error(`Expected renderUnitFile() to fail`);
+    }
+    expect(rendered.error.cause).toBe(cause);
   });
 
   test(`defineExecutable runs the current module when executed directly`, async () => {

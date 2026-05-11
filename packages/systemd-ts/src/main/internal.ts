@@ -183,7 +183,10 @@ export function renderUnitFile(
   } catch (error) {
     return {
       ok: false,
-      error: error as ExecutableInferenceError,
+      error:
+        error instanceof ExecutableInferenceError
+          ? error
+          : new ExecutableInferenceError({ cause: error }),
     };
   }
 }
