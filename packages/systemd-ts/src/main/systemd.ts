@@ -267,7 +267,7 @@ export class Systemd {
     ]
       .map(shellQuote)
       .join(` `);
-    const args = [`-lc`, `${command} || true`] as const;
+    const args = [`-lc`, `${command} 2>&1 || true`] as const;
     let logs;
     try {
       logs = await this.executor(`bash`, args);
@@ -284,7 +284,7 @@ export class Systemd {
       );
     }
 
-    return ok(logs.stdout);
+    return ok([logs.stdout, logs.stderr].filter((value) => value.length > 0).join(`\n`));
   }
 
   /** Returns the on-disk unit-file path this instance uses for the given unit. */

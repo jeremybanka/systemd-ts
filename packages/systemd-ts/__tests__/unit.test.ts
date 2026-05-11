@@ -304,6 +304,28 @@ describe(`systemd-ts unit`, () => {
     });
   });
 
+  test(`includes stderr when systemctl status writes diagnostics there`, async () => {
+    const systemd = new Systemd({
+      executor: async () => ({
+        stderr: `unit not found`,
+        stdout: ``,
+      }),
+      unitDir: `/tmp/systemd-ts-logs`,
+    });
+    const service = new SystemdService({
+      name: `backup-db`,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+
+    const logs = await systemd.logs(service);
+    expect(logs).toEqual({
+      ok: true,
+      value: `unit not found`,
+    });
+  });
+
   test(`classifies invalid unit directories during materialization`, async () => {
     const fixtureDir = await mkdtemp(join(tmpdir(), `systemd-ts-invalid-unit-dir-`));
     const unitDir = join(fixtureDir, `not-a-directory`);
