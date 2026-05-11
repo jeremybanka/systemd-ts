@@ -827,12 +827,12 @@ export class SystemdTs {
       readonly path: string;
       readonly rendered: string;
     }[],
-  ): {
+  ): Promise<{
     readonly added: readonly string[];
     readonly removed: readonly string[];
     readonly unchanged: readonly string[];
     readonly updated: readonly string[];
-  } {
+  }> {
     const priorUnits = new Map(prior?.units.map((unit) => [unit.filename, unit.path]) ?? []);
     const desiredNames = new Set(desired.map((unit) => unit.filename));
     const added: string[] = [];
@@ -897,8 +897,7 @@ export class SystemdTs {
   }
 
   private async removeManagedUnitPath(path: string): Promise<void> {
-    const command = `rm -f ${shellQuote(path)}`;
-    await this.systemd.executor(`bash`, [`-lc`, command]);
+    await this.systemd.executor(`rm`, [`-f`, path]);
   }
 
   private scopeArgs(): readonly string[] {
