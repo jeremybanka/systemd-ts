@@ -124,6 +124,7 @@ describe(`systemd-ts sandbox`, () => {
   test(`enables a timer so it is wanted by timers.target in the sandbox`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
+    chronicle?.mark(`enable-timer:start`);
     const timer = new SystemdTimer({
       name: sandbox.namePrefix,
       unit: {
@@ -138,26 +139,32 @@ describe(`systemd-ts sandbox`, () => {
         WantedBy: `timers.target`,
       },
     });
+    chronicle?.mark(`enable-timer:definitions-ready`);
 
     const materialized = await systemd.materialize(timer);
+    chronicle?.mark(`enable-timer:materialize-finished`);
     expect(materialized.ok).toBe(true);
     const enabled = await systemd.enable(timer);
+    chronicle?.mark(`enable-timer:enable-finished`);
     expect(enabled).toEqual({ ok: true, value: undefined });
 
     const systemdStatus = await runGuestCommand(
       `systemctl --user is-enabled ${shellQuote(timer.filename)}`,
     );
+    chronicle?.mark(`enable-timer:is-enabled-checked`);
     expect(systemdStatus).toContain(`enabled`);
 
     const wantsLink = await runGuestCommand(
       `readlink -f "$HOME/.config/systemd/user/timers.target.wants/${timer.filename}"`,
     );
+    chronicle?.mark(`enable-timer:wants-link-checked`);
     expect(wantsLink.trim()).toBe(systemd.pathFor(timer));
   });
 
   test(`rejects start when the unit was never materialized into the sandbox`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
+    chronicle?.mark(`start-without-materialize:start`);
     const service = new SystemdService({
       name: sandbox.namePrefix,
       service: {
@@ -165,6 +172,7 @@ describe(`systemd-ts sandbox`, () => {
         ExecStart: `/usr/bin/true`,
       },
     });
+    chronicle?.mark(`start-without-materialize:definitions-ready`);
 
     expect(await systemd.start(service)).toMatchObject({
       ok: false,
@@ -174,12 +182,14 @@ describe(`systemd-ts sandbox`, () => {
         unitName: service.filename,
       } satisfies Partial<UnitStartError>,
     });
+    chronicle?.mark(`start-without-materialize:assertions-finished`);
   });
 
   test(`runs an executable-backed service command inside the sandbox`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
     const markerFile = `${sandbox.workDir}/executable-marker.txt`;
+    chronicle?.mark(`executable:start`);
     const executable = new Executable({
       modulePath: guestExecutableFixturePath,
       runtimeEntrypoint: `/usr/bin/bash`,
@@ -192,8 +202,10 @@ describe(`systemd-ts sandbox`, () => {
         ExecStart: executable,
       },
     });
+    chronicle?.mark(`executable:definitions-ready`);
 
     const result = await systemd.materialize(service);
+    chronicle?.mark(`executable:materialize-finished`);
     expect(result.ok).toBe(true);
     if (!result.ok) {
       throw result.error;
@@ -204,22 +216,27 @@ describe(`systemd-ts sandbox`, () => {
     if (!execStart.ok) {
       throw execStart.error;
     }
+    chronicle?.mark(`executable:exec-start-ready`);
 
     expect(materializedService).toContain(`ExecStart=${execStart.value}`);
     expect(materializedService).toContain(`Environment=SYSTEMD_TS_MARKER_FILE=${markerFile}`);
     expect(
       await runGuestCommand(`test -x ${shellQuote(executable.runtimeEntrypoint)} && echo ok`),
     ).toContain(`ok`);
+    chronicle?.mark(`executable:runtime-checked`);
 
     await runGuestCommand(`SYSTEMD_TS_MARKER_FILE=${shellQuote(markerFile)} ${execStart.value}`);
+    chronicle?.mark(`executable:guest-command-finished`);
 
     expect(await runGuestCommand(`cat ${shellQuote(markerFile)}`)).toBe(`ran`);
+    chronicle?.mark(`executable:assertions-finished`);
   });
 
   test(`starts a oneshot service and observes successful completion`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
     const markerFile = `${sandbox.workDir}/start-marker.txt`;
+    chronicle?.mark(`start-success:start`);
     const service = new SystemdService({
       name: sandbox.namePrefix,
       service: {
@@ -227,25 +244,31 @@ describe(`systemd-ts sandbox`, () => {
         ExecStart: `/usr/bin/bash -lc 'echo started > ${markerFile}'`,
       },
     });
+    chronicle?.mark(`start-success:definitions-ready`);
 
     expect(await systemd.materialize(service)).toMatchObject({ ok: true });
+    chronicle?.mark(`start-success:materialize-finished`);
     const started = await systemd.start(service);
+    chronicle?.mark(`start-success:start-finished`);
     expect(started.ok).toBe(true);
     if (!started.ok) {
       throw started.error;
     }
 
     expect((await runGuestCommand(`cat ${shellQuote(markerFile)}`)).trim()).toBe(`started`);
+    chronicle?.mark(`start-success:marker-read`);
     expect(started.value.unit).toBe(service.filename);
     expect(started.value.result).toBe(`success`);
     expect(started.value.activeState).toBe(`inactive`);
     expect(started.value.subState).toBe(`dead`);
     expect(started.value.execMainStatus).toBe(0);
+    chronicle?.mark(`start-success:assertions-finished`);
   });
 
   test(`rejects start when a oneshot service exits non-zero and leaves failure details available`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
+    chronicle?.mark(`start-failure:start`);
     const service = new SystemdService({
       name: sandbox.namePrefix,
       service: {
@@ -253,9 +276,12 @@ describe(`systemd-ts sandbox`, () => {
         ExecStart: `/usr/bin/bash -lc 'echo sandbox-failure >&2; exit 17'`,
       },
     });
+    chronicle?.mark(`start-failure:definitions-ready`);
 
     expect(await systemd.materialize(service)).toMatchObject({ ok: true });
+    chronicle?.mark(`start-failure:materialize-finished`);
     const started = await systemd.start(service);
+    chronicle?.mark(`start-failure:start-finished`);
     expect(started).toMatchObject({
       ok: false,
       error: {
@@ -273,18 +299,21 @@ describe(`systemd-ts sandbox`, () => {
     expect(started.error.diagnostics?.showStatus?.result).toBe(`exit-code`);
     expect(started.error.diagnostics?.showStatus?.execMainStatus).toBe(17);
     expect(started.error.diagnostics?.statusOutput).toContain(service.filename);
+    chronicle?.mark(`start-failure:diagnostics-checked`);
 
     const status = parseSystemctlShow(
       await runGuestCommand(
         `systemctl --user show ${shellQuote(service.filename)} --property=Id,ActiveState,SubState,Result,ExecMainStatus`,
       ),
     );
+    chronicle?.mark(`start-failure:systemctl-show-finished`);
 
     expect(status[`Id`]).toBe(service.filename);
     expect(status[`ActiveState`]).toBe(`failed`);
     expect(status[`SubState`]).toBe(`failed`);
     expect(status[`Result`]).toBe(`exit-code`);
     expect(parseNumber(status[`ExecMainStatus`])).toBe(17);
+    chronicle?.mark(`start-failure:assertions-finished`);
   });
 
   test(`reads recent journald output for a managed unit`, async () => {
@@ -292,6 +321,7 @@ describe(`systemd-ts sandbox`, () => {
     const systemd = sandboxSystemd();
     const logLine = `sandbox-log-${sandbox.id}`;
     const logFile = `${sandbox.workDir}/service.log`;
+    chronicle?.mark(`logs-success:start`);
     const service = new SystemdService({
       name: sandbox.namePrefix,
       service: {
@@ -300,21 +330,27 @@ describe(`systemd-ts sandbox`, () => {
         ExecStart: `/usr/bin/bash -lc 'echo ${logLine}'`,
       },
     });
+    chronicle?.mark(`logs-success:definitions-ready`);
 
     expect(await systemd.materialize(service)).toMatchObject({ ok: true });
+    chronicle?.mark(`logs-success:materialize-finished`);
     expect(await systemd.start(service)).toMatchObject({ ok: true });
+    chronicle?.mark(`logs-success:start-finished`);
 
     const logs = await systemd.logs(service, { lines: 20 });
+    chronicle?.mark(`logs-success:logs-read`);
     expect(logs.ok).toBe(true);
     if (!logs.ok) {
       throw logs.error;
     }
     expect(logs.value).toContain(logLine);
+    chronicle?.mark(`logs-success:assertions-finished`);
   });
 
   test(`surfaces failed unit status through logs() after start rejection`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
+    chronicle?.mark(`logs-failure:start`);
     const service = new SystemdService({
       name: sandbox.namePrefix,
       service: {
@@ -322,8 +358,10 @@ describe(`systemd-ts sandbox`, () => {
         ExecStart: `/usr/bin/bash -lc 'echo failed-log-line >&2; exit 23'`,
       },
     });
+    chronicle?.mark(`logs-failure:definitions-ready`);
 
     expect(await systemd.materialize(service)).toMatchObject({ ok: true });
+    chronicle?.mark(`logs-failure:materialize-finished`);
     expect(await systemd.start(service)).toMatchObject({
       ok: false,
       error: {
@@ -332,8 +370,10 @@ describe(`systemd-ts sandbox`, () => {
         unitName: service.filename,
       } satisfies Partial<UnitStartError>,
     });
+    chronicle?.mark(`logs-failure:start-finished`);
 
     const logs = await systemd.logs(service, { lines: 20 });
+    chronicle?.mark(`logs-failure:logs-read`);
     expect(logs.ok).toBe(true);
     if (!logs.ok) {
       throw logs.error;
@@ -341,12 +381,14 @@ describe(`systemd-ts sandbox`, () => {
     expect(logs.value).toContain(service.filename);
     expect(logs.value).toContain(`failed`);
     expect(logs.value).toContain(`23`);
+    chronicle?.mark(`logs-failure:assertions-finished`);
   });
 
   test(`wraps missing file-backed logs in a named error`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
     const missingLogFile = `${sandbox.workDir}/missing.log`;
+    chronicle?.mark(`logs-missing-file:start`);
     const service = new SystemdService({
       name: sandbox.namePrefix,
       service: {
@@ -355,6 +397,7 @@ describe(`systemd-ts sandbox`, () => {
         ExecStart: `/usr/bin/true`,
       },
     });
+    chronicle?.mark(`logs-missing-file:definitions-ready`);
 
     expect(await systemd.logs(service)).toMatchObject({
       ok: false,
@@ -365,6 +408,7 @@ describe(`systemd-ts sandbox`, () => {
         unitPath: missingLogFile,
       } satisfies Partial<UnitLogsReadError>,
     });
+    chronicle?.mark(`logs-missing-file:assertions-finished`);
   });
 
   test(`signals READY=1 from a notify service process`, () => {
@@ -372,17 +416,22 @@ describe(`systemd-ts sandbox`, () => {
     const socketPath = `/tmp/systemd-ts-ready-${sandbox.id}.sock`;
     const outputPath = `/tmp/systemd-ts-ready-${sandbox.id}.txt`;
     return (async () => {
+      chronicle?.mark(`notify-ready:start`);
       await startNotifyCapture(socketPath, outputPath);
+      chronicle?.mark(`notify-ready:capture-ready`);
       const result = await notify.ready({
         executor: guestCommandExecutor,
         socketPath,
         status: `ready-status`,
       });
+      chronicle?.mark(`notify-ready:notify-finished`);
       expect(result).toEqual({ ok: true, value: undefined });
 
       const payload = await waitForNotifyPayload(outputPath);
+      chronicle?.mark(`notify-ready:payload-read`);
       expect(payload).toContain(`READY=1`);
       expect(payload).toContain(`STATUS=ready-status`);
+      chronicle?.mark(`notify-ready:assertions-finished`);
     })();
   });
 
@@ -391,19 +440,24 @@ describe(`systemd-ts sandbox`, () => {
     const socketPath = `/tmp/systemd-ts-watchdog-${sandbox.id}.sock`;
     const outputPath = `/tmp/systemd-ts-watchdog-${sandbox.id}.txt`;
     return (async () => {
+      chronicle?.mark(`notify-watchdog:start`);
       await startNotifyCapture(socketPath, outputPath);
+      chronicle?.mark(`notify-watchdog:capture-ready`);
       const result = await notify.watchdog({
         executor: guestCommandExecutor,
         pid: 1234,
         socketPath,
         status: `watchdog-status`,
       });
+      chronicle?.mark(`notify-watchdog:notify-finished`);
       expect(result).toEqual({ ok: true, value: undefined });
 
       const payload = await waitForNotifyPayload(outputPath);
+      chronicle?.mark(`notify-watchdog:payload-read`);
       expect(payload).toContain(`WATCHDOG=1`);
       expect(payload).toContain(`STATUS=watchdog-status`);
       expect(payload).toContain(`MAINPID=1234`);
+      chronicle?.mark(`notify-watchdog:assertions-finished`);
     })();
   });
 
