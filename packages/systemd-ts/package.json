@@ -23,7 +23,7 @@
   "scripts": {
     "build": "vp pack",
     "dev": "vp pack --watch",
-    "test": "vp test",
+    "test": "vp run test:task",
     "check": "vp check",
     "prepublishOnly": "vp run build"
   },

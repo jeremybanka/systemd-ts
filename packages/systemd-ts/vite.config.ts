@@ -25,6 +25,18 @@ const config: ReturnType<typeof defineConfig> = defineConfig({
     },
   },
   fmt: {},
+  run: {
+    tasks: {
+      "test:task": {
+        command: `vp test`,
+        input: [
+          { auto: true },
+          { pattern: `!.colima/**`, base: `workspace` },
+          { pattern: `!.docker/**`, base: `workspace` },
+        ],
+      },
+    },
+  },
 });
 
 export default config;
