@@ -207,21 +207,17 @@ export class Systemd {
       );
     }
 
-    const statusArgs = [
-      ...scopeArgs,
-      `show`,
-      unit.filename,
-      `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
-    ] as const;
-    let status;
     try {
-      status = await this.systemctl.show(unit.filename, {
-        properties: [`Id`, `ActiveState`, `SubState`, `Result`, `ExecMainStatus`],
-      });
+      return ok(await this.systemctl.showStatus(unit.filename));
     } catch (cause) {
       return err(
         new UnitStartError(`Started ${unit.filename} but failed to query its status`, {
-          args: statusArgs,
+          args: [
+            ...scopeArgs,
+            `show`,
+            unit.filename,
+            `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
+          ] as const,
           cause,
           command: `systemctl`,
           diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
@@ -230,8 +226,6 @@ export class Systemd {
         }),
       );
     }
-
-    return ok(parseStartStatus(unit.filename, status.stdout));
   }
 
   /**

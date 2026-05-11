@@ -1034,6 +1034,23 @@ export interface SystemctlOptions {
   readonly scope?: `system` | `user`;
 }
 
+export type SystemctlEnablementState =
+  | `enabled`
+  | `enabled-runtime`
+  | `linked`
+  | `linked-runtime`
+  | `alias`
+  | `masked`
+  | `masked-runtime`
+  | `static`
+  | `indirect`
+  | `disabled`
+  | `generated`
+  | `transient`
+  | `bad`
+  | `not-found`
+  | (string & {});
+
 export interface CommandOutput {
   readonly stderr: string;
   readonly stdout: string;
@@ -1052,6 +1069,15 @@ export interface SystemctlShowOptions {
 export interface SystemctlStatusOptions {
   readonly lines?: number;
   readonly noPager?: boolean;
+}
+
+export interface SystemctlIsEnabledOptions {
+  readonly full?: boolean;
+  readonly quiet?: boolean;
+}
+
+export interface SystemctlStateQueryOptions {
+  readonly quiet?: boolean;
 }
 
 export interface NotifyOptions {

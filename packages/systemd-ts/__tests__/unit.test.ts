@@ -171,6 +171,19 @@ describe(`systemd-ts unit`, () => {
     await systemctl.show(`backup-db.service`, {
       properties: [`Id`, `ActiveState`],
     });
+    await systemctl.showProperties(`backup-db.service`, {
+      properties: [`Id`, `Description`],
+    });
+    await systemctl.showStatus(`backup-db.service`);
+    await systemctl.isEnabled(`backup-db.service`);
+    await systemctl.isEnabled(`backup-db.service`, {
+      full: true,
+      quiet: true,
+    });
+    await systemctl.isActive(`backup-db.service`);
+    await systemctl.isFailed(`backup-db.service`, {
+      quiet: true,
+    });
     await systemctl.status(`backup-db.service`, {
       lines: 20,
     });
@@ -186,9 +199,94 @@ describe(`systemd-ts unit`, () => {
       },
       {
         command: `systemctl`,
+        args: [`--user`, `show`, `backup-db.service`, `--property=Id,Description`],
+      },
+      {
+        command: `systemctl`,
+        args: [
+          `--user`,
+          `show`,
+          `backup-db.service`,
+          `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
+        ],
+      },
+      {
+        command: `systemctl`,
+        args: [`--user`, `is-enabled`, `backup-db.service`],
+      },
+      {
+        command: `systemctl`,
+        args: [`--user`, `is-enabled`, `--full`, `--quiet`, `backup-db.service`],
+      },
+      {
+        command: `systemctl`,
+        args: [`--user`, `is-active`, `backup-db.service`],
+      },
+      {
+        command: `systemctl`,
+        args: [`--user`, `is-failed`, `--quiet`, `backup-db.service`],
+      },
+      {
+        command: `systemctl`,
         args: [`--user`, `status`, `backup-db.service`, `--no-pager`, `--lines`, `20`],
       },
     ]);
+  });
+
+  test(`parses typed query outputs from systemctl`, async () => {
+    const calls: Array<{ command: string; args: readonly string[] }> = [];
+    const systemctl = new Systemctl({
+      executor: async (command, args) => {
+        calls.push({ command, args });
+        const subcommand = args[1];
+        if (subcommand === `show` && args.includes(`--property=Id,Description`)) {
+          return {
+            stdout: `Id=backup-db.service\nDescription=Backup DB nightly\nEmpty=\n`,
+            stderr: ``,
+          };
+        }
+        if (subcommand === `show`) {
+          return {
+            stdout: `Id=backup-db.service\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n`,
+            stderr: ``,
+          };
+        }
+        if (subcommand === `is-enabled`) {
+          return { stdout: `enabled\n`, stderr: `` };
+        }
+        if (subcommand === `is-active`) {
+          return { stdout: `active\n`, stderr: `` };
+        }
+        if (subcommand === `is-failed`) {
+          return { stdout: `inactive\n`, stderr: `` };
+        }
+
+        return { stdout: ``, stderr: `` };
+      },
+      scope: `user`,
+    });
+
+    await expect(
+      systemctl.showProperties(`backup-db.service`, {
+        properties: [`Id`, `Description`],
+      }),
+    ).resolves.toEqual({
+      Id: `backup-db.service`,
+      Description: `Backup DB nightly`,
+      Empty: ``,
+    });
+    await expect(systemctl.showStatus(`backup-db.service`)).resolves.toEqual({
+      unit: `backup-db.service`,
+      activeState: `inactive`,
+      subState: `dead`,
+      result: `success`,
+      execMainStatus: 0,
+    });
+    await expect(systemctl.isEnabled(`backup-db.service`)).resolves.toBe(`enabled`);
+    await expect(systemctl.isActive(`backup-db.service`)).resolves.toBe(`active`);
+    await expect(systemctl.isFailed(`backup-db.service`)).resolves.toBe(`inactive`);
+
+    expect(calls).toHaveLength(5);
   });
 
   test(`renders ExecStart from an executable helper`, () => {

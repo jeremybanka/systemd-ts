@@ -1,8 +1,12 @@
-import { defaultCommandExecutor } from "./internal.ts";
+import { defaultCommandExecutor, parseStartStatus } from "./internal.ts";
 import type {
   CommandExecutor,
   CommandOutput,
+  StartStatus,
+  SystemctlEnablementState,
+  SystemctlIsEnabledOptions,
   SystemctlOptions,
+  SystemctlStateQueryOptions,
   SystemctlShowOptions,
   SystemctlStatusOptions,
 } from "./types.ts";
@@ -42,6 +46,47 @@ export class Systemctl {
   }
 
   /**
+   * Checks the install-time enablement state of a unit file.
+   *
+   * Source:
+   * - systemd v260.1, `systemctl(1)`
+   */
+  public async isEnabled(
+    unit: string,
+    options: SystemctlIsEnabledOptions = {},
+  ): Promise<SystemctlEnablementState> {
+    const output = await this.run(
+      `is-enabled`,
+      ...(options.full ? [`--full`] : []),
+      ...(options.quiet ? [`--quiet`] : []),
+      unit,
+    );
+    return firstNonEmptyOutputLine(output) as SystemctlEnablementState;
+  }
+
+  /**
+   * Checks the runtime active state of a unit.
+   *
+   * Unless `quiet` is set, this returns the state string printed by
+   * `systemctl is-active`.
+   */
+  public async isActive(unit: string, options: SystemctlStateQueryOptions = {}): Promise<string> {
+    const output = await this.run(`is-active`, ...(options.quiet ? [`--quiet`] : []), unit);
+    return firstNonEmptyOutputLine(output);
+  }
+
+  /**
+   * Checks whether a unit is in the failed state.
+   *
+   * Unless `quiet` is set, this returns the state string printed by
+   * `systemctl is-failed`.
+   */
+  public async isFailed(unit: string, options: SystemctlStateQueryOptions = {}): Promise<string> {
+    const output = await this.run(`is-failed`, ...(options.quiet ? [`--quiet`] : []), unit);
+    return firstNonEmptyOutputLine(output);
+  }
+
+  /**
    * Queries `systemctl show` for a unit.
    *
    * When `properties` are provided, only those properties are requested.
@@ -52,6 +97,30 @@ export class Systemctl {
         ? []
         : [`--property=${options.properties.join(`,`)}`];
     return this.run(`show`, unit, ...propertyFlag);
+  }
+
+  /**
+   * Queries `systemctl show` and parses the result into a key-value object.
+   *
+   * Properties are returned exactly as printed by `systemctl show`.
+   */
+  public async showProperties(
+    unit: string,
+    options: SystemctlShowOptions = {},
+  ): Promise<Readonly<Record<string, string>>> {
+    const output = await this.show(unit, options);
+    return parseSystemctlShowOutput(output.stdout);
+  }
+
+  /**
+   * Queries the standard status-related `show` properties for a unit and
+   * returns a parsed snapshot.
+   */
+  public async showStatus(unit: string): Promise<StartStatus> {
+    const output = await this.show(unit, {
+      properties: [`Id`, `ActiveState`, `SubState`, `Result`, `ExecMainStatus`],
+    });
+    return parseStartStatus(unit, output.stdout);
   }
 
   /** Starts a unit by filename. */
@@ -85,4 +154,31 @@ export class Systemctl {
   private scopeArgs(): readonly string[] {
     return this.scope === `user` ? [`--user`] : [];
   }
+}
+
+function parseSystemctlShowOutput(output: string): Readonly<Record<string, string>> {
+  return Object.freeze(
+    Object.fromEntries(
+      output
+        .split(`\n`)
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .map((line) => {
+          const separatorIndex = line.indexOf(`=`);
+          if (separatorIndex === -1) {
+            return [line, ``] as const;
+          }
+
+          return [line.slice(0, separatorIndex), line.slice(separatorIndex + 1)] as const;
+        }),
+    ),
+  );
+}
+
+function firstNonEmptyOutputLine(output: CommandOutput): string {
+  const line = [output.stdout, output.stderr]
+    .flatMap((value) => value.split(`\n`))
+    .map((value) => value.trim())
+    .find((value) => value.length > 0);
+  return line ?? ``;
 }
