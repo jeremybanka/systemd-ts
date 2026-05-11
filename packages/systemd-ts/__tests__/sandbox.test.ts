@@ -243,7 +243,7 @@ describe(`systemd-ts sandbox`, () => {
     expect(started.value.execMainStatus).toBe(0);
   });
 
-  test(`rejects start when a oneshot service exits non-zero and leaves failure details inspectable`, async () => {
+  test(`rejects start when a oneshot service exits non-zero and leaves failure details available`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
     const service = new SystemdService({
