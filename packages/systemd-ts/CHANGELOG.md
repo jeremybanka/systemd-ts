@@ -1,5 +1,12 @@
 # systemd-ts
 
+## 0.3.1
+
+### Patch Changes
+
+- 905d4e8: Export reusable sandbox harness plumbing from `systemd-ts/test`, including
+  `sandboxSystemd()`, `isolatedSandboxSystemd()`, and guest command executors.
+
 ## 0.3.0
 
 ### Minor Changes
