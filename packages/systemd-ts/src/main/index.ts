@@ -37,6 +37,7 @@ export type {
   SystemctlIsSystemRunningOptions,
   SystemctlListTimersOptions,
   SystemctlOptions,
+  SystemctlServiceStatus,
   SystemctlSystemRunningState,
   SystemctlStateQueryOptions,
   SystemctlShowOptions,

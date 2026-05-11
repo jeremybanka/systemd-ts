@@ -199,6 +199,9 @@ describe(`systemd-ts unit`, () => {
         properties: [`Id`, `Description`],
       }),
     ).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.showServiceStatus(`backup-db.service`)).resolves.toMatchObject({
+      ok: true,
+    });
     await expect(systemctl.showStatus(`backup-db.service`)).resolves.toMatchObject({ ok: true });
     await expect(
       systemctl.listTimers({
@@ -244,6 +247,15 @@ describe(`systemd-ts unit`, () => {
       {
         command: `systemctl`,
         args: [`--user`, `show`, `backup-db.service`, `--property=Id,Description`],
+      },
+      {
+        command: `systemctl`,
+        args: [
+          `--user`,
+          `show`,
+          `backup-db.service`,
+          `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
+        ],
       },
       {
         command: `systemctl`,
@@ -347,6 +359,16 @@ describe(`systemd-ts unit`, () => {
         execMainStatus: 0,
       },
     });
+    await expect(systemctl.showServiceStatus(`backup-db.service`)).resolves.toEqual({
+      ok: true,
+      value: {
+        unit: `backup-db.service`,
+        activeState: `inactive`,
+        subState: `dead`,
+        result: `success`,
+        execMainStatus: 0,
+      },
+    });
     await expect(systemctl.isEnabled(`backup-db.service`)).resolves.toEqual({
       ok: true,
       value: `enabled`,
@@ -364,7 +386,7 @@ describe(`systemd-ts unit`, () => {
       value: `running`,
     });
 
-    expect(calls).toHaveLength(6);
+    expect(calls).toHaveLength(7);
   });
 
   test(`returns the observed typed list-timers json shape`, async () => {

@@ -209,7 +209,7 @@ export class Systemd {
       return err(new UnitStartError(`Failed to start ${unit.filename}`, errorOptions));
     }
 
-    const status = await this.systemctl.showStatus(unit.filename);
+    const status = await this.systemctl.showServiceStatus(unit.filename);
     if (!status.ok) {
       const errorOptions = {
         args: [

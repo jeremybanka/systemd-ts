@@ -11,6 +11,7 @@ import type {
   SystemctlIsSystemRunningOptions,
   SystemctlListTimersOptions,
   SystemctlOptions,
+  SystemctlServiceStatus,
   SystemctlStateQueryOptions,
   SystemctlShowOptions,
   SystemctlStatusOptions,
@@ -166,6 +167,16 @@ export class Systemctl {
    * returns a parsed snapshot.
    */
   public async showStatus(unit: string): Promise<Result<StartStatus, SystemctlCommandError>> {
+    return this.showServiceStatus(unit);
+  }
+
+  /**
+   * Queries the standard service-status `show` properties for a service unit
+   * and returns a parsed snapshot.
+   */
+  public async showServiceStatus(
+    unit: string,
+  ): Promise<Result<SystemctlServiceStatus, SystemctlCommandError>> {
     const output = await this.show(unit, {
       properties: [`Id`, `ActiveState`, `SubState`, `Result`, `ExecMainStatus`],
     });

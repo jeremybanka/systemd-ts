@@ -1141,6 +1141,14 @@ export interface StartStatus {
   readonly unit: string;
 }
 
+/**
+ * The typed `systemctl show` status projection exposed for service units.
+ *
+ * This currently mirrors the shared start/status snapshot shape used by the
+ * library's service workflows.
+ */
+export interface SystemctlServiceStatus extends StartStatus {}
+
 export interface ExecutableOptions {
   readonly args?: readonly string[];
   readonly modulePath?: string;
