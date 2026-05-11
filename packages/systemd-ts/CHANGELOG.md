@@ -1,5 +1,12 @@
 # systemd-ts
 
+## 0.3.3
+
+### Patch Changes
+
+- 9a6ff27: Add explicit `CommandExecutor` annotations to the test harness guest executors to preserve the intended exported types.
+- 89be193: Enable declaration sourcemaps in the published type output.
+
 ## 0.3.2
 
 ### Patch Changes
