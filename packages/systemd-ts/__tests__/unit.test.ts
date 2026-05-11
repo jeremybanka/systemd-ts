@@ -184,6 +184,7 @@ describe(`systemd-ts unit`, () => {
     await expect(systemctl.enable(`backup-db.service`)).resolves.toMatchObject({ ok: true });
     await expect(systemctl.link(`/tmp/backup-db.service`)).resolves.toMatchObject({ ok: true });
     await expect(systemctl.start(`backup-db.service`)).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.stop(`backup-db.service`)).resolves.toMatchObject({ ok: true });
     await expect(
       systemctl.show(`backup-db.service`, {
         properties: [`Id`, `ActiveState`],
@@ -225,6 +226,7 @@ describe(`systemd-ts unit`, () => {
       { command: `systemctl`, args: [`--user`, `enable`, `backup-db.service`] },
       { command: `systemctl`, args: [`--user`, `link`, `/tmp/backup-db.service`] },
       { command: `systemctl`, args: [`--user`, `start`, `backup-db.service`] },
+      { command: `systemctl`, args: [`--user`, `stop`, `backup-db.service`] },
       {
         command: `systemctl`,
         args: [`--user`, `show`, `backup-db.service`, `--property=Id,ActiveState`],

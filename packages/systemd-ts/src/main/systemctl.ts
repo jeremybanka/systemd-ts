@@ -189,6 +189,11 @@ export class Systemctl {
     return this.run(`start`, unit);
   }
 
+  /** Stops a unit by filename. */
+  public async stop(unit: string): Promise<Result<CommandOutput, SystemctlCommandError>> {
+    return this.run(`stop`, unit);
+  }
+
   /**
    * Queries `systemctl status` for a unit.
    *
