@@ -1029,6 +1029,11 @@ export interface SystemdOptions {
   readonly unitDir?: string;
 }
 
+export interface SystemctlOptions {
+  readonly executor?: CommandExecutor;
+  readonly scope?: `system` | `user`;
+}
+
 export interface CommandOutput {
   readonly stderr: string;
   readonly stdout: string;
@@ -1038,6 +1043,15 @@ export type CommandExecutor = (command: string, args: readonly string[]) => Prom
 
 export interface LogsOptions {
   readonly lines?: number;
+}
+
+export interface SystemctlShowOptions {
+  readonly properties?: readonly string[];
+}
+
+export interface SystemctlStatusOptions {
+  readonly lines?: number;
+  readonly noPager?: boolean;
 }
 
 export interface NotifyOptions {

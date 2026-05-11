@@ -13,6 +13,7 @@ export { Executable, defineExecutable } from "./executable.ts";
 export { notify } from "./notify.ts";
 export { SystemdService } from "./systemd-service.ts";
 export { SystemdTimer } from "./systemd-timer.ts";
+export { Systemctl } from "./systemctl.ts";
 export { Systemd, SystemdMaterialization, defaultSystemd } from "./systemd.ts";
 export type { Result } from "./internal.ts";
 export type {
@@ -29,6 +30,9 @@ export type {
   StartStatus,
   SystemdOptions,
   SystemdServiceOptions,
+  SystemctlOptions,
+  SystemctlShowOptions,
+  SystemctlStatusOptions,
   SystemdTimerOptions,
   SystemdUnit,
   TimerBaseName,

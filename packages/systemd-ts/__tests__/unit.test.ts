@@ -16,6 +16,7 @@ import {
   Systemd,
   SystemdService,
   SystemdTimer,
+  Systemctl,
   UnitEnableError,
   UnitLogsReadError,
   UnitMaterializationError,
@@ -151,6 +152,43 @@ describe(`systemd-ts unit`, () => {
 
   test(`defaults system scope to the canonical unit directory`, () => {
     expect(new Systemd().unitDir).toBe(`/etc/systemd/system`);
+  });
+
+  test(`builds scope-aware systemctl invocations directly`, async () => {
+    const calls: Array<{ command: string; args: readonly string[] }> = [];
+    const systemctl = new Systemctl({
+      executor: async (command, args) => {
+        calls.push({ command, args });
+        return { stdout: ``, stderr: `` };
+      },
+      scope: `user`,
+    });
+
+    await systemctl.daemonReload();
+    await systemctl.enable(`backup-db.service`);
+    await systemctl.link(`/tmp/backup-db.service`);
+    await systemctl.start(`backup-db.service`);
+    await systemctl.show(`backup-db.service`, {
+      properties: [`Id`, `ActiveState`],
+    });
+    await systemctl.status(`backup-db.service`, {
+      lines: 20,
+    });
+
+    expect(calls).toEqual([
+      { command: `systemctl`, args: [`--user`, `daemon-reload`] },
+      { command: `systemctl`, args: [`--user`, `enable`, `backup-db.service`] },
+      { command: `systemctl`, args: [`--user`, `link`, `/tmp/backup-db.service`] },
+      { command: `systemctl`, args: [`--user`, `start`, `backup-db.service`] },
+      {
+        command: `systemctl`,
+        args: [`--user`, `show`, `backup-db.service`, `--property=Id,ActiveState`],
+      },
+      {
+        command: `systemctl`,
+        args: [`--user`, `status`, `backup-db.service`, `--no-pager`, `--lines`, `20`],
+      },
+    ]);
   });
 
   test(`renders ExecStart from an executable helper`, () => {
@@ -451,6 +489,53 @@ describe(`systemd-ts unit`, () => {
         reason: `executor-failed`,
       } satisfies Partial<NotifySendError>,
     });
+  });
+
+  test(`exposes the low-level systemctl client through Systemd`, async () => {
+    const calls: Array<{ command: string; args: readonly string[] }> = [];
+    const systemd = new Systemd({
+      executor: async (command, args) => {
+        calls.push({ command, args });
+        return {
+          stderr: ``,
+          stdout:
+            args[1] === `show`
+              ? `Id=backup-db.service\nActiveState=active\nSubState=running\nResult=success\nExecMainStatus=0\n`
+              : ``,
+        };
+      },
+      scope: `user`,
+      unitDir: `/tmp/systemd-ts-systemctl-client`,
+    });
+    const service = new SystemdService({
+      name: `backup-db`,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+
+    const started = await systemd.start(service);
+    expect(started).toMatchObject({
+      ok: true,
+      value: {
+        unit: `backup-db.service`,
+        activeState: `active`,
+      },
+    });
+    expect(systemd.systemctl).toBeInstanceOf(Systemctl);
+    expect(calls).toEqual([
+      { command: `systemctl`, args: [`--user`, `daemon-reload`] },
+      { command: `systemctl`, args: [`--user`, `start`, `backup-db.service`] },
+      {
+        command: `systemctl`,
+        args: [
+          `--user`,
+          `show`,
+          `backup-db.service`,
+          `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
+        ],
+      },
+    ]);
   });
 });
 

@@ -20,6 +20,7 @@ import {
   UnitStartError,
 } from "./errors.ts";
 import { SystemdService } from "./systemd-service.ts";
+import { Systemctl } from "./systemctl.ts";
 import { SystemdTimer } from "./systemd-timer.ts";
 import type {
   CommandExecutor,
@@ -69,6 +70,8 @@ export class Systemd {
   public readonly linkUnits: boolean;
   /** The target manager scope, either `system` or `user`. */
   public readonly scope: `system` | `user`;
+  /** The low-level `systemctl` client for this configured target. */
+  public readonly systemctl: Systemctl;
   /** The directory used when materializing unit files. */
   public readonly unitDir: string;
 
@@ -84,6 +87,10 @@ export class Systemd {
     this.unitDir = options.unitDir ?? defaultUnitDirForScope(this.scope);
     this.linkUnits = options.linkUnits ?? false;
     this.executor = options.executor ?? defaultCommandExecutor;
+    this.systemctl = new Systemctl({
+      executor: this.executor,
+      scope: this.scope,
+    });
     Object.freeze(this);
   }
 
@@ -141,7 +148,7 @@ export class Systemd {
     for (const unit of units) {
       const args = [...scopeArgs, `enable`, unit.filename] as const;
       try {
-        await this.executor(`systemctl`, args);
+        await this.systemctl.enable(unit.filename);
       } catch (cause) {
         return err(
           new UnitEnableError(`Failed to enable ${unit.filename}`, {
@@ -186,7 +193,7 @@ export class Systemd {
 
     const startArgs = [...scopeArgs, `start`, unit.filename] as const;
     try {
-      await this.executor(`systemctl`, startArgs);
+      await this.systemctl.start(unit.filename);
     } catch (cause) {
       return err(
         new UnitStartError(`Failed to start ${unit.filename}`, {
@@ -208,7 +215,9 @@ export class Systemd {
     ] as const;
     let status;
     try {
-      status = await this.executor(`systemctl`, statusArgs);
+      status = await this.systemctl.show(unit.filename, {
+        properties: [`Id`, `ActiveState`, `SubState`, `Result`, `ExecMainStatus`],
+      });
     } catch (cause) {
       return err(
         new UnitStartError(`Started ${unit.filename} but failed to query its status`, {
@@ -302,7 +311,7 @@ export class Systemd {
       for (const path of linkPaths) {
         const args = [...scopeArgs, `link`, path] as const;
         try {
-          await this.executor(`systemctl`, args);
+          await this.systemctl.link(path);
         } catch (cause) {
           const linkedUnit = units.find((candidate) => this.pathFor(candidate) === path);
           const errorContext = {
@@ -322,7 +331,7 @@ export class Systemd {
 
     const args = [...scopeArgs, `daemon-reload`] as const;
     try {
-      await this.executor(`systemctl`, args);
+      await this.systemctl.daemonReload();
     } catch (cause) {
       throw operation === `enable`
         ? new UnitEnableError(`Failed to reload systemd before enable`, {
