@@ -376,6 +376,36 @@ describe(`systemd-ts unit`, () => {
     });
   });
 
+  test(`reports the failing link path during enable preparation`, async () => {
+    const service = new SystemdService({
+      name: `backup-db`,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+    const systemd = new Systemd({
+      executor: async (_command, args) => {
+        if (args[0] === `link`) {
+          throw new Error(`link exploded`);
+        }
+
+        return { stdout: ``, stderr: `` };
+      },
+      linkUnits: true,
+      unitDir: `/tmp/systemd-ts-link`,
+    });
+
+    const enabled = await systemd.enable(service);
+    expect(enabled).toMatchObject({
+      ok: false,
+      error: {
+        stage: `link`,
+        unitName: service.filename,
+        unitPath: systemd.pathFor(service),
+      } satisfies Partial<UnitEnableError>,
+    });
+  });
+
   test(`classifies unavailable systemd managers during start`, async () => {
     const systemd = new Systemd({
       executor: async (_command, args) => {

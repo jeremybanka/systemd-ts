@@ -304,21 +304,18 @@ export class Systemd {
         try {
           await this.executor(`systemctl`, args);
         } catch (cause) {
+          const linkedUnit = units.find((candidate) => this.pathFor(candidate) === path);
+          const errorContext = {
+            args,
+            cause,
+            command: `systemctl`,
+            stage: `link`,
+            ...(linkedUnit === undefined ? {} : { unitName: linkedUnit.filename }),
+            unitPath: path,
+          };
           throw operation === `enable`
-            ? new UnitEnableError(`Failed to link ${path} before enable`, {
-                args,
-                cause,
-                command: `systemctl`,
-                stage: `link`,
-                unitName: units[0]?.filename,
-              })
-            : new UnitStartError(`Failed to link ${path} before start`, {
-                args,
-                cause,
-                command: `systemctl`,
-                stage: `link`,
-                unitName: units[0]?.filename,
-              });
+            ? new UnitEnableError(`Failed to link ${path} before enable`, errorContext)
+            : new UnitStartError(`Failed to link ${path} before start`, errorContext);
         }
       }
     }

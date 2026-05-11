@@ -20,6 +20,7 @@ export interface SystemdCommandErrorOptions extends SystemdTsErrorOptions {
   readonly environmentReason?: SystemdCommandEnvironmentReason;
   readonly stage?: string;
   readonly unitName?: string;
+  readonly unitPath?: string;
 }
 
 export interface UnitStartDiagnostics {
@@ -139,6 +140,7 @@ export class UnitEnableError extends SystemdTsError {
   public readonly stderr: string | undefined;
   public readonly stdout: string | undefined;
   public readonly unitName: string | undefined;
+  public readonly unitPath: string | undefined;
 
   public constructor(message: string, options: SystemdCommandErrorOptions = {}) {
     super(`SYSTEMD_TS_UNIT_ENABLE`, message, options);
@@ -152,6 +154,7 @@ export class UnitEnableError extends SystemdTsError {
     this.stderr = details.stderr;
     this.stdout = details.stdout;
     this.unitName = options.unitName;
+    this.unitPath = options.unitPath;
   }
 }
 
@@ -165,6 +168,7 @@ export class UnitStartError extends SystemdTsError {
   public readonly stderr: string | undefined;
   public readonly stdout: string | undefined;
   public readonly unitName: string | undefined;
+  public readonly unitPath: string | undefined;
 
   public constructor(message: string, options: UnitStartErrorOptions = {}) {
     super(`SYSTEMD_TS_UNIT_START`, message, options);
@@ -179,6 +183,7 @@ export class UnitStartError extends SystemdTsError {
     this.stderr = details.stderr;
     this.stdout = details.stdout;
     this.unitName = options.unitName;
+    this.unitPath = options.unitPath;
   }
 }
 
