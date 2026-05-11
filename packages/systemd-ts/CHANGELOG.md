@@ -1,5 +1,69 @@
 # systemd-ts
 
+## 0.2.0
+
+### Minor Changes
+
+- f34e844: **Breaking change:** Change the public API from throw-based control flow to `Result` unions for normal failures. `Systemd.materialize()`, `enable()`, `start()`, `logs()`, `notify.ready()`, and `notify.watchdog()` now return `{ ok: true, value } | { ok: false, error }` instead of rejecting for expected operation failures.
+
+  ```ts
+  const started = await systemd.start(service);
+
+  if (!started.ok) {
+    console.error(started.error.code, started.error.message);
+  } else {
+    console.log(started.value.activeState);
+  }
+  ```
+
+  `SystemdService.render()`, `SystemdTimer.render()`, and executable rendering helpers now follow the same pattern instead of throwing for invalid exec directives or executable inference failures.
+
+- 5802e13: **Breaking change:** Rename `Systemd.install()` to `Systemd.materialize()`. As part of that rename, the `installed` property on the result is now named `materialized`.
+
+  ```ts
+  // Old way
+  const result = await systemd.install(service, timer);
+  result.installed;
+
+  // New way
+  const result = await systemd.materialize(service, timer);
+  result.materialized;
+  ```
+
+- f34e844: **Breaking change:** Rename result-shaped success types and simplify materialization path access. `SystemdMaterializeResult` is now `SystemdMaterialization`, `StartResult` is now `StartStatus`, and `CommandResult` is now `CommandOutput`.
+
+  ```ts
+  const materialized = await systemd.materialize(service);
+  if (materialized.ok) {
+    materialized.value.materialized[0]?.path;
+    systemd.pathFor(service);
+  }
+  ```
+
+  As part of this cleanup, the materialization object no longer exposes a `pathFor(unit)` lookup method. Use the `materialized` entries on the returned value, or call `systemd.pathFor(unit)` on the configured `Systemd` instance instead.
+
+  `materialize()` also no longer raises a runtime error for mismatched timer and service groups. That relationship is left to the type system, so runtime materialization now proceeds when the inputs are otherwise valid.
+
+- f34e844: Add named error exports for the library’s public failure modes so callers can branch on stable types instead of parsing generic `Error` messages. The package now exports `SystemdTsError` plus errors such as `InvalidExecDirectiveError`, `NoUnitsProvidedError`, `UnitMaterializationError`, `UnitEnableError`, `UnitStartError`, `UnitLogsReadError`, `NotifySendError`, and `ExecutableInferenceError`.
+
+  ```ts
+  const logs = await systemd.logs(service);
+  if (!logs.ok && logs.error instanceof UnitLogsReadError) {
+    console.error(logs.error.reason);
+  }
+  ```
+
+- 4fa7279: **Breaking change:** Remove the deprecated `UnitSection` export.
+- f34e844: Add rich failure metadata for operational errors. `UnitStartError` now includes best-effort diagnostics from `systemctl show` and `systemctl status`, while `UnitLogsReadError`, `NotifySendError`, and `UnitMaterializationError` expose structured `reason` fields. Command-backed errors such as `UnitEnableError`, `UnitStartError`, `UnitLogsReadError`, and `NotifySendError` also expose `environmentReason` to distinguish cases like a missing `systemctl`, a permission problem, or an unavailable systemd manager.
+
+  ```ts
+  const started = await systemd.start(service);
+  if (!started.ok) {
+    console.log(started.error.environmentReason);
+    console.log(started.error.diagnostics?.showStatus?.result);
+  }
+  ```
+
 ## 0.1.1
 
 ### Patch Changes
