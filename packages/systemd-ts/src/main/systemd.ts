@@ -586,9 +586,7 @@ export class SystemdTs {
     const manifestPath = this.manifestPathFor(options.owner);
     const prior = await this.readManifest(options.owner);
     const diff = await this.diffManifest(prior, described.value);
-    const materialized = await this.systemd.materialize(
-      ...(units as readonly SystemdUnit[] & ValidInstallUnits<readonly SystemdUnit[]>),
-    );
+    const materialized = await this.systemd.materialize(...(units as readonly SystemdUnit[]));
     if (!materialized.ok) {
       return materialized;
     }
@@ -735,9 +733,7 @@ export class SystemdTs {
       }
     }
 
-    const materialized = await this.systemd.materialize(
-      ...(units as readonly SystemdUnit[] & ValidInstallUnits<readonly SystemdUnit[]>),
-    );
+    const materialized = await this.systemd.materialize(...(units as readonly SystemdUnit[]));
     if (!materialized.ok) {
       return materialized;
     }
@@ -792,9 +788,7 @@ export class SystemdTs {
     });
   }
 
-  private async describeUnits(
-    units: readonly SystemdUnit[],
-  ): Promise<
+  private async describeUnits(units: readonly SystemdUnit[]): Promise<
     Result<
       readonly {
         readonly filename: string;

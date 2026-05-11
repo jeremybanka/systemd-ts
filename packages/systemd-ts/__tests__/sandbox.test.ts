@@ -604,9 +604,7 @@ describe(`systemd-ts sandbox`, () => {
     const timerPath = systemd.pathFor(timer);
     const servicePath = systemd.pathFor(serviceV2);
     expect(
-      await runGuestCommand(
-        `if [ ! -e ${shellQuote(timerPath)} ]; then echo missing; fi`,
-      ),
+      await runGuestCommand(`if [ ! -e ${shellQuote(timerPath)} ]; then echo missing; fi`),
     ).toContain(`missing`);
     expect(
       parseSystemctlShow(
