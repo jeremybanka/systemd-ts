@@ -1,5 +1,11 @@
 # systemd-ts
 
+## 0.3.2
+
+### Patch Changes
+
+- a282877: Ship published source files and JavaScript sourcemaps in the package tarball so downstream debugging can resolve bundled code back to the original TypeScript modules.
+
 ## 0.3.1
 
 ### Patch Changes
