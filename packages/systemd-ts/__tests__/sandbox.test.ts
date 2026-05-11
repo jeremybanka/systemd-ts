@@ -122,6 +122,48 @@ describe(`systemd-ts sandbox`, () => {
     chronicle?.mark(`test:assertions-finished`);
   });
 
+  test(`materializes a service even when its unit file already exists in the sandbox`, async () => {
+    const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
+      unit: {
+        Description: `Rewrite an existing unit file`,
+      },
+      service: {
+        Type: `oneshot`,
+        ExecStart: `/usr/bin/bash -lc 'echo refreshed > ${sandbox.workDir}/existing-marker.txt'`,
+      },
+      install: {
+        WantedBy: `default.target`,
+      },
+    });
+    const servicePath = systemd.pathFor(service);
+    chronicle?.mark(`materialize-existing:start`);
+
+    await runGuestCommand(
+      `mkdir -p ${JSON.stringify(sandbox.linkedUnitDir)} && printf '%s\n' '[Unit]' 'Description=stale definition' > ${JSON.stringify(servicePath)}`,
+    );
+    chronicle?.mark(`materialize-existing:seeded-existing-file`);
+
+    const result = await systemd.materialize(service);
+    chronicle?.mark(`materialize-existing:materialize-finished`);
+    expect(result.ok).toBe(true);
+    if (!result.ok) {
+      throw result.error;
+    }
+
+    expect(result.value.materialized).toContainEqual({ path: servicePath, unit: service });
+
+    const materializedService = await readFile(servicePath, `utf8`);
+    expect(materializedService).toContain(`Description=Rewrite an existing unit file`);
+    expect(materializedService).toContain(
+      `ExecStart=/usr/bin/bash -lc 'echo refreshed > ${sandbox.workDir}/existing-marker.txt'`,
+    );
+    expect(materializedService).not.toContain(`Description=stale definition`);
+    chronicle?.mark(`materialize-existing:assertions-finished`);
+  });
+
   test(`enables a timer so it is wanted by timers.target in the sandbox`, async () => {
     const sandbox = useCurrentTestSandbox();
     const systemd = sandboxSystemd();
@@ -460,6 +502,123 @@ describe(`systemd-ts sandbox`, () => {
       expect(payload).toContain(`MAINPID=1234`);
       chronicle?.mark(`notify-watchdog:assertions-finished`);
     })();
+  });
+
+  test(`ts.attach materializes, enables, and starts an owned service`, async () => {
+    const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
+    const owner = `com.example.attach-${sandbox.id}`;
+    const markerFile = `${sandbox.workDir}/ts-attach-marker.txt`;
+    chronicle?.mark(`ts-attach:start`);
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
+      service: {
+        Type: `oneshot`,
+        ExecStart: `/usr/bin/bash -lc 'echo attached > ${markerFile}'`,
+      },
+      install: {
+        WantedBy: `default.target`,
+      },
+    });
+    chronicle?.mark(`ts-attach:definitions-ready`);
+
+    const attached = await systemd.ts.attach([service], {
+      enable: true,
+      owner,
+      start: true,
+    });
+    chronicle?.mark(`ts-attach:attach-finished`);
+    expect(attached.ok).toBe(true);
+    if (!attached.ok) {
+      throw attached.error;
+    }
+
+    expect(attached.value.added).toContain(service.filename);
+    expect(attached.value.enabled).toContain(service.filename);
+    expect(attached.value.started).toContain(service.filename);
+    expect((await runGuestCommand(`cat ${shellQuote(markerFile)}`)).trim()).toBe(`attached`);
+    expect(
+      await runGuestCommand(`systemctl --user is-enabled ${shellQuote(service.filename)}`),
+    ).toContain(`enabled`);
+    chronicle?.mark(`ts-attach:assertions-finished`);
+  });
+
+  test(`ts.reattach prunes removed owned units while updating retained ones`, async () => {
+    const sandbox = useCurrentTestSandbox();
+    const systemd = sandboxSystemd();
+    const owner = `com.example.reattach-${sandbox.id}`;
+    chronicle?.mark(`ts-reattach:start`);
+    const serviceV1 = new SystemdService({
+      name: sandbox.namePrefix,
+      unit: {
+        Description: `First generation service`,
+      },
+      service: {
+        Type: `oneshot`,
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+    const timer = new SystemdTimer({
+      name: sandbox.namePrefix,
+      timer: {
+        OnCalendar: `hourly`,
+        Unit: serviceV1.filename,
+      },
+      install: {
+        WantedBy: `timers.target`,
+      },
+    });
+    chronicle?.mark(`ts-reattach:initial-definitions-ready`);
+
+    expect(
+      await systemd.ts.attach([serviceV1, timer], {
+        enable: true,
+        owner,
+      }),
+    ).toMatchObject({ ok: true });
+    chronicle?.mark(`ts-reattach:initial-attach-finished`);
+
+    const serviceV2 = new SystemdService({
+      name: sandbox.namePrefix,
+      unit: {
+        Description: `Second generation service`,
+      },
+      service: {
+        Type: `oneshot`,
+        ExecStart: `/usr/bin/bash -lc 'echo updated >/dev/null'`,
+      },
+    });
+
+    const reattached = await systemd.ts.reattach([serviceV2], {
+      owner,
+      prune: true,
+    });
+    chronicle?.mark(`ts-reattach:reattach-finished`);
+    expect(reattached.ok).toBe(true);
+    if (!reattached.ok) {
+      throw reattached.error;
+    }
+
+    expect(reattached.value.removed).toContain(timer.filename);
+    expect(reattached.value.updated).toContain(serviceV2.filename);
+    const timerPath = systemd.pathFor(timer);
+    const servicePath = systemd.pathFor(serviceV2);
+    expect(
+      await runGuestCommand(
+        `if [ ! -e ${shellQuote(timerPath)} ]; then echo missing; fi`,
+      ),
+    ).toContain(`missing`);
+    expect(
+      parseSystemctlShow(
+        await runGuestCommand(
+          `systemctl --user show ${shellQuote(timer.filename)} --property=LoadState`,
+        ),
+      )[`LoadState`],
+    ).toBe(`not-found`);
+    const materializedService = await readFile(servicePath, `utf8`);
+    expect(materializedService).toContain(`Description=Second generation service`);
+    expect(materializedService).not.toContain(`Description=First generation service`);
+    chronicle?.mark(`ts-reattach:assertions-finished`);
   });
 
   test(`materializes, enables, and runs a timer-driven service end to end`, async () => {
