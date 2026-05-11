@@ -19,6 +19,7 @@ Usage instructions and examples live in
 
 - `systemd.version` contains the latest stable upstream `systemd` release version
 - Renovate watches `systemd/systemd` GitHub releases and updates that file hourly
+- `pnpm run manpages:fetch -- --current` refreshes the local cached upstream manpage source under `.manpages/`
 - PRs that change `systemd.version` must add a matching review record in `compatibility/systemd/`
 
 ## Commands

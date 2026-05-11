@@ -6,8 +6,10 @@
 - If a tool does not come from npm, install and manage it with `mise`.
 - Use the `.manpages/` directory as the source of truth when adding or documenting features.
 - `.manpages/` is organized by version to reduce ambiguity and make it easier to extend with new material.
+- Do not check vendored upstream systemd source into git. `.manpages/` stays ignored except for intentional placeholders like `.gitkeep`.
 - Pin dependencies as exactly as practical. Avoid loose ranges like `^`, `~`, or `latest` unless there is a documented reason.
 - When working with timestamps or time-based normalization, always prefer `Temporal` over `Date`.
+- Do not add JavaScript runtime scripts to this repo. Node runs TypeScript directly here, so scripts should be `.ts` unless there is a documented reason otherwise.
 - Assume `gh` is available when debugging GitHub Actions workflows and reading PR comments.
 - Never directly modify `CHANGELOG.md`; describe release-facing changes in changesets instead.
 - While the project is pre-`1.0.0`, breaking changes should be released as minor versions and prefixed with `**Breaking change:**` in their changesets.
