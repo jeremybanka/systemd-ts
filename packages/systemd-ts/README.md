@@ -322,6 +322,67 @@ This lower-level flow is useful when you want exact control over
 materialization, enablement, or startup behavior without going through the
 code-owned upkeep layer.
 
+## Testing Against A Real User Manager
+
+The package also ships a `systemd-ts/test` module for integration tests that
+need a real `systemd --user` environment.
+
+Use `ensureTestHost()` to warm the test host, `createTestSandbox()` to create
+an isolated unit directory, and `sandboxSystemd()` when you want a `Systemd`
+instance already pointed at that sandbox.
+
+```ts
+import { afterEach, beforeAll, beforeEach, test } from "vite-plus/test";
+
+import { SystemdService } from "systemd-ts";
+import {
+  createTestSandbox,
+  destroyCurrentTestSandbox,
+  ensureTestHost,
+  sandboxSystemd,
+  useCurrentTestSandbox,
+} from "systemd-ts/test";
+
+beforeAll(async () => {
+  await ensureTestHost();
+});
+
+beforeEach(async (context) => {
+  await createTestSandbox(context.task.name);
+});
+
+afterEach(async () => {
+  await destroyCurrentTestSandbox();
+});
+
+test(`starts a service in a sandbox`, async () => {
+  const sandbox = useCurrentTestSandbox();
+  const systemd = sandboxSystemd();
+  const markerFile = `${sandbox.workDir}/started.txt`;
+  const service = new SystemdService({
+    name: sandbox.namePrefix,
+    service: {
+      Type: `oneshot`,
+      ExecStart: `/usr/bin/bash -lc 'echo started > ${markerFile}'`,
+    },
+  });
+
+  const materialized = await systemd.materialize(service);
+  if (!materialized.ok) {
+    throw materialized.error;
+  }
+
+  const started = await systemd.start(service);
+  if (!started.ok) {
+    throw started.error;
+  }
+});
+```
+
+If you need direct executor access for helpers outside `Systemd`, the same
+module also exports `guestCommandExecutor`, `isolatedGuestCommandExecutor`, and
+`createGuestCommandExecutor()`.
+
 ## Explore Further
 
 The README is meant to answer what the library is for.

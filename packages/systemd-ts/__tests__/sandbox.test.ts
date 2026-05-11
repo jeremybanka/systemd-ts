@@ -7,16 +7,14 @@ import { afterEach, beforeAll, beforeEach, describe, expect, test } from "vite-p
 
 import {
   Executable,
-  Systemd,
   SystemdService,
   SystemdTimer,
   UnitLogsReadError,
   UnitStartError,
   notify,
-  type CommandExecutionOptions,
-  type CommandOutput,
 } from "../src/main/index.ts";
 import { ensureTestHost, runGuestCommand, runIsolatedGuestCommand } from "../src/test/host.ts";
+import { guestCommandExecutor, isolatedSandboxSystemd, sandboxSystemd } from "../src/test/index.ts";
 import {
   createTestSandbox,
   destroyCurrentTestSandbox,
@@ -733,89 +731,6 @@ systemctl --user reset-failed ${shellQuote(service.filename)} || true`,
     chronicle?.mark(`list-timers-json:assertions-finished`);
   }, 15_000);
 });
-
-function sandboxSystemd(): Systemd {
-  const sandbox = useCurrentTestSandbox();
-  return new Systemd({
-    executor: guestCommandExecutor,
-    linkUnits: true,
-    scope: `user`,
-    unitDir: sandbox.linkedUnitDir,
-  });
-}
-
-function isolatedSandboxSystemd(): Systemd {
-  const sandbox = useCurrentTestSandbox();
-  return new Systemd({
-    executor: isolatedGuestCommandExecutor,
-    linkUnits: true,
-    scope: `user`,
-    unitDir: sandbox.linkedUnitDir,
-  });
-}
-
-async function guestCommandExecutor(
-  command: string,
-  args: readonly string[],
-  options: CommandExecutionOptions = {},
-): Promise<CommandOutput> {
-  try {
-    const stdout = await runGuestCommand(buildGuestCommand(command, args, options));
-    return {
-      stderr: ``,
-      stdout,
-    };
-  } catch (cause) {
-    throw enrichGuestCommandError(cause);
-  }
-}
-
-async function isolatedGuestCommandExecutor(
-  command: string,
-  args: readonly string[],
-  options: CommandExecutionOptions = {},
-): Promise<CommandOutput> {
-  try {
-    const stdout = await runIsolatedGuestCommand(buildGuestCommand(command, args, options));
-    return {
-      stderr: ``,
-      stdout,
-    };
-  } catch (cause) {
-    throw enrichGuestCommandError(cause);
-  }
-}
-
-function buildGuestCommand(
-  command: string,
-  args: readonly string[],
-  options: CommandExecutionOptions,
-): string {
-  const envArgs =
-    options.env === undefined
-      ? []
-      : Object.entries(options.env).flatMap(([key, value]) =>
-          value === undefined ? [`-u`, key] : [`${key}=${value}`],
-        );
-
-  return [`env`, ...envArgs, command, ...args].map((part) => shellQuote(part)).join(` `);
-}
-
-function enrichGuestCommandError(cause: unknown): Error {
-  if (cause instanceof Error) {
-    return Object.assign(cause, {
-      code: 1,
-      stderr: ``,
-      stdout: cause.message,
-    });
-  }
-
-  return Object.assign(new Error(`Guest command failed`), {
-    code: 1,
-    stderr: ``,
-    stdout: ``,
-  });
-}
 
 function shellQuote(value: string): string {
   return `'${value.replaceAll(`'`, `'\\''`)}'`;
