@@ -1,5 +1,55 @@
 # systemd-ts
 
+## 0.3.0
+
+### Minor Changes
+
+- 280fe6d: Added a new public `Systemctl` client for argv-first `systemctl` execution and typed query helpers.
+
+  ```ts
+  const systemctl = new Systemctl({ scope: `user` });
+
+  await systemctl.start(`backup-db.service`);
+  await systemctl.showServiceStatus(`backup-db.service`);
+  await systemctl.listTimers({ all: true });
+  await systemctl.isSystemRunning();
+  ```
+
+  The new client includes typed helpers for service status, timer listing, unit enablement and runtime state checks, and common lifecycle commands such as `start()`, `stop()`, `restart()`, `enable()`, `disable()`, `link()`, `resetFailed()`, and `daemonReload()`.
+
+- 8759967: Added a new `systemd.ts` application-owned upkeep layer for reconciling managed unit sets from TypeScript.
+
+  ```ts
+  const systemd = new Systemd({
+    scope: `user`,
+    unitDir: join(homedir(), `.config/systemd/user`),
+    linkUnits: true,
+  });
+
+  const result = await systemd.ts.reattach([service, timer], {
+    owner: `com.example.backup-db`,
+    enable: true,
+    start: true,
+    prune: true,
+  });
+  ```
+
+  This new namespace introduces manifest-backed `attach()`, `detach()`, and `reattach()` workflows intended for desktop apps, self-updating agents, and other code-managed service setups. The package README now leads with this higher-level upkeep model, while the lower-level `Systemd` materialization and lifecycle flow remains documented in a dedicated subsection for direct `systemd` usage.
+
+### Patch Changes
+
+- 280fe6d: Hardened command execution by removing the remaining internal shell-wrapped `systemctl` and `systemd-notify` paths.
+
+  ```ts
+  const result = await notify.ready({
+    executor,
+    socketPath: `/run/systemd/notify`,
+    status: `ready`,
+  });
+  ```
+
+  Custom executors may now receive structured execution options, including environment overrides, so notification delivery and systemd diagnostics can be invoked directly without composing `bash -lc` command strings.
+
 ## 0.2.0
 
 ### Minor Changes
