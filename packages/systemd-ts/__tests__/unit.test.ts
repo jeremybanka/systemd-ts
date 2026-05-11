@@ -24,6 +24,11 @@ import {
   UnitStartError,
   notify,
 } from "../src/main/index.ts";
+import {
+  createGuestCommandExecutor,
+  guestCommandExecutor,
+  isolatedGuestCommandExecutor,
+} from "../src/test/index.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -450,6 +455,47 @@ describe(`systemd-ts unit`, () => {
         environmentReason: `missing-command`,
       } satisfies Partial<SystemctlCommandError>,
     });
+  });
+
+  test(`creates a guest command executor that preserves argv and env boundaries`, async () => {
+    let observedScript = ``;
+    const executor = createGuestCommandExecutor(async (script) => {
+      observedScript = script;
+      return `ok`;
+    });
+
+    await expect(
+      executor(`/usr/bin/printf`, [`hello world`, `it's fine`], {
+        env: {
+          EMPTY: undefined,
+          GREETING: `hello world`,
+        },
+      }),
+    ).resolves.toEqual({
+      stderr: ``,
+      stdout: `ok`,
+    });
+
+    expect(observedScript).toBe(
+      `'env' '-u' 'EMPTY' 'GREETING=hello world' '/usr/bin/printf' 'hello world' 'it'\\''s fine'`,
+    );
+  });
+
+  test(`wraps guest command runner failures in command-shaped errors`, async () => {
+    const executor = createGuestCommandExecutor(async () => {
+      throw new Error(`guest exploded`);
+    });
+
+    await expect(executor(`/usr/bin/false`, [])).rejects.toMatchObject({
+      code: 1,
+      stderr: ``,
+      stdout: `guest exploded`,
+    });
+  });
+
+  test(`exports reusable guest executors`, () => {
+    expect(typeof guestCommandExecutor).toBe(`function`);
+    expect(typeof isolatedGuestCommandExecutor).toBe(`function`);
   });
 
   test(`renders ExecStart from an executable helper`, () => {
