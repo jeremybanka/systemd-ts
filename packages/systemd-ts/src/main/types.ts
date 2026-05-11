@@ -1029,16 +1029,110 @@ export interface SystemdOptions {
   readonly unitDir?: string;
 }
 
+export interface SystemctlOptions {
+  readonly executor?: CommandExecutor;
+  readonly scope?: `system` | `user`;
+}
+
+export type SystemctlEnablementState =
+  | `enabled`
+  | `enabled-runtime`
+  | `linked`
+  | `linked-runtime`
+  | `alias`
+  | `masked`
+  | `masked-runtime`
+  | `static`
+  | `indirect`
+  | `disabled`
+  | `generated`
+  | `transient`
+  | `bad`
+  | `not-found`
+  | (string & {});
+
+export type SystemctlActiveState =
+  | `active`
+  | `reloading`
+  | `inactive`
+  | `failed`
+  | `activating`
+  | `deactivating`
+  | `maintenance`
+  | `refreshing`;
+
 export interface CommandOutput {
   readonly stderr: string;
   readonly stdout: string;
 }
 
-export type CommandExecutor = (command: string, args: readonly string[]) => Promise<CommandOutput>;
+export interface CommandExecutionOptions {
+  readonly env?: Readonly<Record<string, string | undefined>>;
+}
+
+export type CommandExecutor = (
+  command: string,
+  args: readonly string[],
+  options?: CommandExecutionOptions,
+) => Promise<CommandOutput>;
 
 export interface LogsOptions {
   readonly lines?: number;
 }
+
+export interface SystemctlShowOptions {
+  readonly properties?: readonly string[];
+}
+
+export interface SystemctlStatusOptions {
+  readonly lines?: number;
+  readonly noPager?: boolean;
+}
+
+export interface SystemctlListTimersOptions {
+  readonly all?: boolean;
+  readonly noPager?: boolean;
+  readonly patterns?: readonly string[];
+}
+
+/**
+ * The official `systemctl list-timers --output=json` entry shape exposed by
+ * this library.
+ *
+ * Timestamp fields are returned as raw integer values exactly as reported by
+ * `systemctl`, so callers can compose their own normalization strategy.
+ */
+export interface SystemctlTimerListEntry {
+  readonly next: number;
+  readonly left: number;
+  readonly last: number;
+  readonly passed: number;
+  readonly unit: `${string}.timer`;
+  readonly activates: string;
+}
+
+export interface SystemctlIsEnabledOptions {
+  readonly full?: boolean;
+  readonly quiet?: boolean;
+}
+
+export interface SystemctlStateQueryOptions {
+  readonly quiet?: boolean;
+}
+
+export interface SystemctlIsSystemRunningOptions {
+  readonly wait?: boolean;
+}
+
+export type SystemctlSystemRunningState =
+  | `initializing`
+  | `starting`
+  | `running`
+  | `degraded`
+  | `maintenance`
+  | `stopping`
+  | `offline`
+  | `unknown`;
 
 export interface NotifyOptions {
   readonly executor?: CommandExecutor;
@@ -1054,6 +1148,14 @@ export interface StartStatus {
   readonly subState: string;
   readonly unit: string;
 }
+
+/**
+ * The typed `systemctl show` status projection exposed for service units.
+ *
+ * This currently mirrors the shared start/status snapshot shape used by the
+ * library's service workflows.
+ */
+export interface SystemctlServiceStatus extends StartStatus {}
 
 export interface ExecutableOptions {
   readonly args?: readonly string[];

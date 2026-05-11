@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import { ExecutableInferenceError, InvalidExecDirectiveError, NotifySendError } from "./errors.ts";
 import { Executable } from "./executable.ts";
 import type {
+  CommandExecutionOptions,
   CommandOutput,
   NotifyOptions,
   SystemdServiceSection,
@@ -191,15 +192,16 @@ export function renderUnitFile(
   }
 }
 
-export function shellQuote(value: string): string {
-  return `'${value.replaceAll(`'`, `'\\''`)}'`;
-}
-
 export async function defaultCommandExecutor(
   command: string,
   args: readonly string[],
+  options: CommandExecutionOptions = {},
 ): Promise<CommandOutput> {
-  const result = await execFileAsync(command, [...args]);
+  const result = await execFileAsync(
+    command,
+    [...args],
+    options.env === undefined ? {} : { env: { ...process.env, ...options.env } },
+  );
   return {
     stderr: result.stderr,
     stdout: result.stdout,
@@ -219,7 +221,7 @@ export async function sendNotify(
   state: `READY=1` | `WATCHDOG=1`,
   options: NotifyOptions,
 ): Promise<void> {
-  const args: string[] = [state];
+  const args: string[] = [`--no-block`, state];
   if (options.pid !== undefined) {
     args.push(`MAINPID=${options.pid}`);
   }
@@ -228,16 +230,19 @@ export async function sendNotify(
   }
 
   if (options.executor !== undefined) {
-    const command = buildNotifyShellCommand(args, options.socketPath);
     try {
-      await options.executor(`bash`, [`-lc`, command]);
+      await options.executor(
+        `systemd-notify`,
+        args,
+        options.socketPath === undefined ? {} : { env: { NOTIFY_SOCKET: options.socketPath } },
+      );
     } catch (cause) {
       throw new NotifySendError(
         `Failed to send systemd notification through the configured executor`,
         {
-          args: [`-lc`, command],
+          args,
           cause,
-          command: `bash`,
+          command: `systemd-notify`,
           reason: `executor-failed`,
           stage: `executor`,
         },
@@ -264,6 +269,24 @@ export async function sendNotify(
       stage: `systemd-notify`,
     });
   }
+}
+
+export function extractCommandOutput(cause: unknown): CommandOutput | undefined {
+  if (cause === null || typeof cause !== `object`) {
+    return undefined;
+  }
+
+  const record = cause as Record<string, unknown>;
+  const stdout = typeof record[`stdout`] === `string` ? record[`stdout`] : undefined;
+  const stderr = typeof record[`stderr`] === `string` ? record[`stderr`] : undefined;
+  if (stdout === undefined && stderr === undefined) {
+    return undefined;
+  }
+
+  return {
+    stderr: stderr ?? ``,
+    stdout: stdout ?? ``,
+  };
 }
 
 function hasServiceSection(
@@ -380,10 +403,4 @@ function isAbsoluteExecCommand(value: string): boolean {
   }
 
   return value[index] === `/`;
-}
-
-function buildNotifyShellCommand(args: readonly string[], socketPath: string | undefined): string {
-  const prefix = socketPath === undefined ? `` : `NOTIFY_SOCKET=${shellQuote(socketPath)} `;
-  const command = [`systemd-notify`, ...args].map(shellQuote).join(` `);
-  return `${prefix}${command}`;
 }

@@ -13,6 +13,7 @@ import {
   UnitLogsReadError,
   UnitStartError,
   notify,
+  type CommandExecutionOptions,
   type CommandOutput,
 } from "../src/main/index.ts";
 import { ensureTestHost, runGuestCommand, runIsolatedGuestCommand } from "../src/test/host.ts";
@@ -511,6 +512,69 @@ systemctl --user reset-failed ${shellQuote(service.filename)} || true`,
     );
     chronicle?.mark(`timer:manual-cleanup-finished`);
   }, 15_000);
+
+  test(`logs the raw list-timers json payload for a real timer`, async () => {
+    const sandbox = useCurrentTestSandbox();
+    const systemd = isolatedSandboxSystemd();
+    chronicle?.mark(`list-timers-json:start`);
+    const service = new SystemdService({
+      name: sandbox.namePrefix,
+      service: {
+        Type: `oneshot`,
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+    const timer = new SystemdTimer({
+      name: sandbox.namePrefix,
+      timer: {
+        OnActiveSec: `30s`,
+        Unit: service.filename,
+      },
+      install: {
+        WantedBy: `timers.target`,
+      },
+    });
+    chronicle?.mark(`list-timers-json:definitions-ready`);
+
+    expect(await systemd.materialize(service, timer)).toMatchObject({ ok: true });
+    chronicle?.mark(`list-timers-json:materialize-finished`);
+    expect(await systemd.enable(timer)).toEqual({ ok: true, value: undefined });
+    chronicle?.mark(`list-timers-json:enable-finished`);
+    expect(await systemd.start(timer)).toMatchObject({ ok: true });
+    chronicle?.mark(`list-timers-json:start-finished`);
+
+    const rawTimers = await runIsolatedGuestCommand(
+      `systemctl --user list-timers --all --no-pager --output=json ${shellQuote(timer.filename)} || true`,
+    );
+    chronicle?.mark(`list-timers-json:raw-list-finished`);
+    console.info(
+      `[systemd-ts:list-timers-json] ${JSON.stringify(
+        {
+          timer: timer.filename,
+          payload: rawTimers,
+        },
+        null,
+        2,
+      )}`,
+    );
+
+    expect(rawTimers.trim()).not.toBe(``);
+    if (!rawTimers.trim().startsWith(`[`) && !rawTimers.trim().startsWith(`{`)) {
+      throw new Error(
+        [`systemctl list-timers did not return JSON output for ${timer.filename}`, rawTimers].join(
+          `\n\n`,
+        ),
+      );
+    }
+
+    const timers = await systemd.systemctl.listTimers({
+      all: true,
+      patterns: [timer.filename],
+    });
+    chronicle?.mark(`list-timers-json:list-finished`);
+    expect(timers).toBeDefined();
+    chronicle?.mark(`list-timers-json:assertions-finished`);
+  }, 15_000);
 });
 
 function sandboxSystemd(): Systemd {
@@ -536,29 +600,64 @@ function isolatedSandboxSystemd(): Systemd {
 async function guestCommandExecutor(
   command: string,
   args: readonly string[],
+  options: CommandExecutionOptions = {},
 ): Promise<CommandOutput> {
-  const stdout = await runGuestCommand(
-    [command, ...args].map((part) => shellQuote(part)).join(` `),
-  );
-
-  return {
-    stderr: ``,
-    stdout,
-  };
+  try {
+    const stdout = await runGuestCommand(buildGuestCommand(command, args, options));
+    return {
+      stderr: ``,
+      stdout,
+    };
+  } catch (cause) {
+    throw enrichGuestCommandError(cause);
+  }
 }
 
 async function isolatedGuestCommandExecutor(
   command: string,
   args: readonly string[],
+  options: CommandExecutionOptions = {},
 ): Promise<CommandOutput> {
-  const stdout = await runIsolatedGuestCommand(
-    [command, ...args].map((part) => shellQuote(part)).join(` `),
-  );
+  try {
+    const stdout = await runIsolatedGuestCommand(buildGuestCommand(command, args, options));
+    return {
+      stderr: ``,
+      stdout,
+    };
+  } catch (cause) {
+    throw enrichGuestCommandError(cause);
+  }
+}
 
-  return {
+function buildGuestCommand(
+  command: string,
+  args: readonly string[],
+  options: CommandExecutionOptions,
+): string {
+  const envArgs =
+    options.env === undefined
+      ? []
+      : Object.entries(options.env).flatMap(([key, value]) =>
+          value === undefined ? [`-u`, key] : [`${key}=${value}`],
+        );
+
+  return [`env`, ...envArgs, command, ...args].map((part) => shellQuote(part)).join(` `);
+}
+
+function enrichGuestCommandError(cause: unknown): Error {
+  if (cause instanceof Error) {
+    return Object.assign(cause, {
+      code: 1,
+      stderr: ``,
+      stdout: cause.message,
+    });
+  }
+
+  return Object.assign(new Error(`Guest command failed`), {
+    code: 1,
     stderr: ``,
-    stdout,
-  };
+    stdout: ``,
+  });
 }
 
 function shellQuote(value: string): string {

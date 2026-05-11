@@ -1,62 +1,201 @@
 # systemd-ts
 
-`systemd-ts` is a library for declaring, rendering, and managing `systemd`
-services and timers from TypeScript.
+`systemd-ts` lets you work with `systemd` from TypeScript.
 
-## Usage
+It is designed around a few practical jobs:
 
-The example below materializes a user-scoped service and timer for a small
-nightly backup job. The service does the work, the timer schedules it, and
-`Systemd` writes both unit files before enabling and starting the timer.
+- use `systemctl` from TypeScript
+- define a service from TypeScript
+- define a service that runs on a timer from TypeScript
+- keep the code that runs the job close to the code that defines the service and timer
+
+The library is intentionally close to `systemd` itself. You still work with
+real service units, timer units, and `systemctl` concepts, but you get a
+TypeScript-native way to define them, materialize them, and manage them.
+
+It is also a good place to learn `systemd` itself. The unit directives are
+deeply typed, documented in the TypeScript surface, and maintained against
+versioned upstream manpage material, so the library doubles as a guided way to
+explore what `systemd` can do without starting from loose strings and scattered
+shell examples.
+
+## What It Can Do
+
+### Use `systemctl` from TypeScript
+
+If you want a typed, argv-first `systemctl` client, use `Systemctl`.
+
+```ts
+import { Systemctl } from "systemd-ts";
+
+const systemctl = new Systemctl({ scope: `user` });
+
+const timers = await systemctl.listTimers({ all: true });
+if (!timers.ok) {
+  throw timers.error;
+}
+
+const status = await systemctl.showServiceStatus(`backup-db.service`);
+if (!status.ok) {
+  throw status.error;
+}
+
+console.log(timers.value);
+console.log(status.value);
+```
+
+This is a good fit when you already know the units you want to inspect or
+control and you want to stay inside TypeScript instead of shelling out from app
+code by hand.
+
+### Define a service from TypeScript
+
+If you want to describe a service unit in code, use `SystemdService`.
+
+```ts
+import { SystemdService } from "systemd-ts";
+
+const service = new SystemdService({
+  name: `backup-db`,
+  unit: {
+    Description: `Write a database backup`,
+  },
+  service: {
+    Type: `oneshot`,
+    ExecStart: `/srv/app/bin/backup-db`,
+    StandardOutput: `append:/srv/app/log/backup-db.log`,
+    StandardError: `append:/srv/app/log/backup-db.log`,
+  },
+});
+```
+
+That service can be rendered into a real unit file, materialized into a unit
+directory, and then managed through `Systemd` or `Systemctl`.
+
+### Define a service that runs on a timer
+
+If you want a scheduled job, pair `SystemdService` with `SystemdTimer`.
+
+```ts
+import { SystemdService, SystemdTimer } from "systemd-ts";
+
+const service = new SystemdService({
+  name: `backup-db`,
+  service: {
+    Type: `oneshot`,
+    ExecStart: `/srv/app/bin/backup-db`,
+  },
+});
+
+const timer = new SystemdTimer({
+  name: `backup-db`,
+  unit: {
+    Description: `Run the backup every night`,
+  },
+  timer: {
+    OnCalendar: `03:15`,
+    Persistent: true,
+    Unit: service.filename,
+  },
+  install: {
+    WantedBy: `timers.target`,
+  },
+});
+```
+
+This gives you a real `.service` plus a real `.timer`, both defined from the
+same TypeScript module.
+
+### Keep the executable close to the unit definitions
+
+For many projects, the nicest workflow is to colocate the job entrypoint with
+the service and timer that run it.
+
+`defineExecutable()` is designed for that pattern:
+
+```ts
+import { defineExecutable } from "systemd-ts";
+
+export default defineExecutable(async () => {
+  console.log(`Writing backup...`);
+});
+```
+
+Then you can use that executable directly in a service definition:
+
+```ts
+import backupJob from "./backup-job.ts";
+import { SystemdService, SystemdTimer } from "systemd-ts";
+
+const service = new SystemdService({
+  name: `backup-db`,
+  service: {
+    Type: `oneshot`,
+    ExecStart: backupJob,
+  },
+});
+
+const timer = new SystemdTimer({
+  name: `backup-db`,
+  timer: {
+    OnCalendar: `daily`,
+    Unit: service.filename,
+  },
+  install: {
+    WantedBy: `timers.target`,
+  },
+});
+```
+
+That keeps the scheduled code, the service definition, and the timer definition
+near each other instead of scattering them across shell scripts and unit files.
+
+## A Typical Flow
+
+Most applications use the library in a flow like this:
+
+1. Define a `SystemdService`
+2. Optionally define a matching `SystemdTimer`
+3. Materialize those units into a real unit directory with `Systemd`
+4. Enable or start them with `Systemd`, or inspect them with `Systemctl`
 
 ```ts
 import { homedir } from "node:os";
 import { join } from "node:path";
 
+import backupJob from "./backup-job.ts";
 import { Systemd, SystemdService, SystemdTimer } from "systemd-ts";
 
-const userUnitDir = join(homedir(), ".config/systemd/user");
+const systemd = new Systemd({
+  scope: `user`,
+  unitDir: join(homedir(), `.config/systemd/user`),
+  linkUnits: true,
+});
 
 const service = new SystemdService({
-  name: "backup-db",
-  unit: {
-    Description: "Write a nightly database backup",
-  },
+  name: `backup-db`,
   service: {
-    Type: "oneshot",
-    ExecStart: "/usr/bin/bash -lc '/srv/app/bin/backup-db >> /srv/app/log/backup-db.log 2>&1'",
+    Type: `oneshot`,
+    ExecStart: backupJob,
   },
 });
 
 const timer = new SystemdTimer({
-  name: "backup-db",
-  unit: {
-    Description: "Run the database backup every night",
-  },
+  name: `backup-db`,
   timer: {
-    OnCalendar: "03:15",
+    OnCalendar: `daily`,
     Persistent: true,
     Unit: service.filename,
   },
   install: {
-    WantedBy: "timers.target",
+    WantedBy: `timers.target`,
   },
-});
-
-const systemd = new Systemd({
-  scope: "user",
-  unitDir: userUnitDir,
-  linkUnits: true,
 });
 
 const materialized = await systemd.materialize(service, timer);
 if (!materialized.ok) {
   throw materialized.error;
 }
-
-console.log(systemd.pathFor(service));
-console.log(systemd.pathFor(timer));
-console.log(materialized.value.materialized);
 
 const enabled = await systemd.enable(timer);
 if (!enabled.ok) {
@@ -69,6 +208,14 @@ if (!started.ok) {
 }
 ```
 
-That will materialize `backup-db.service` and `backup-db.timer` into the user's
-unit directory, enable the timer under `timers.target`, and ask `systemd --user`
-to start waiting for the first scheduled run.
+## Explore Further
+
+The README is meant to answer what the library is for.
+
+If you want the exact method surface, result types, or lower-level details, the
+next places to look are:
+
+- `Systemctl` for direct `systemctl` usage from TypeScript
+- `Systemd` for materialization plus unit lifecycle workflows
+- `SystemdService` and `SystemdTimer` for unit definitions
+- `Executable` and `defineExecutable()` for colocated runnable entrypoints

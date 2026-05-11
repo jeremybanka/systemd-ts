@@ -4,9 +4,9 @@ import { join } from "node:path";
 import {
   defaultCommandExecutor,
   defaultUnitDirForScope,
+  extractCommandOutput,
   fileExists,
   parseStartStatus,
-  shellQuote,
   type Result,
 } from "./internal.ts";
 import {
@@ -20,6 +20,7 @@ import {
   UnitStartError,
 } from "./errors.ts";
 import { SystemdService } from "./systemd-service.ts";
+import { Systemctl } from "./systemctl.ts";
 import { SystemdTimer } from "./systemd-timer.ts";
 import type {
   CommandExecutor,
@@ -69,6 +70,8 @@ export class Systemd {
   public readonly linkUnits: boolean;
   /** The target manager scope, either `system` or `user`. */
   public readonly scope: `system` | `user`;
+  /** The low-level `systemctl` client for this configured target. */
+  public readonly systemctl: Systemctl;
   /** The directory used when materializing unit files. */
   public readonly unitDir: string;
 
@@ -84,6 +87,10 @@ export class Systemd {
     this.unitDir = options.unitDir ?? defaultUnitDirForScope(this.scope);
     this.linkUnits = options.linkUnits ?? false;
     this.executor = options.executor ?? defaultCommandExecutor;
+    this.systemctl = new Systemctl({
+      executor: this.executor,
+      scope: this.scope,
+    });
     Object.freeze(this);
   }
 
@@ -140,18 +147,19 @@ export class Systemd {
 
     for (const unit of units) {
       const args = [...scopeArgs, `enable`, unit.filename] as const;
-      try {
-        await this.executor(`systemctl`, args);
-      } catch (cause) {
-        return err(
-          new UnitEnableError(`Failed to enable ${unit.filename}`, {
-            args,
-            cause,
-            command: `systemctl`,
-            stage: `enable`,
-            unitName: unit.filename,
-          }),
-        );
+      const enabled = await this.systemctl.enable(unit.filename);
+      if (!enabled.ok) {
+        const errorOptions = {
+          args,
+          cause: enabled.error,
+          command: `systemctl`,
+          stage: `enable`,
+          unitName: unit.filename,
+          ...(enabled.error.environmentReason === undefined
+            ? {}
+            : { environmentReason: enabled.error.environmentReason }),
+        };
+        return err(new UnitEnableError(`Failed to enable ${unit.filename}`, errorOptions));
       }
     }
 
@@ -185,44 +193,45 @@ export class Systemd {
     }
 
     const startArgs = [...scopeArgs, `start`, unit.filename] as const;
-    try {
-      await this.executor(`systemctl`, startArgs);
-    } catch (cause) {
-      return err(
-        new UnitStartError(`Failed to start ${unit.filename}`, {
-          args: startArgs,
-          cause,
-          command: `systemctl`,
-          diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
-          stage: `start`,
-          unitName: unit.filename,
-        }),
-      );
+    const started = await this.systemctl.start(unit.filename);
+    if (!started.ok) {
+      const errorOptions = {
+        args: startArgs,
+        cause: started.error,
+        command: `systemctl`,
+        diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
+        stage: `start`,
+        unitName: unit.filename,
+        ...(started.error.environmentReason === undefined
+          ? {}
+          : { environmentReason: started.error.environmentReason }),
+      };
+      return err(new UnitStartError(`Failed to start ${unit.filename}`, errorOptions));
     }
 
-    const statusArgs = [
-      ...scopeArgs,
-      `show`,
-      unit.filename,
-      `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
-    ] as const;
-    let status;
-    try {
-      status = await this.executor(`systemctl`, statusArgs);
-    } catch (cause) {
+    const status = await this.systemctl.showServiceStatus(unit.filename);
+    if (!status.ok) {
+      const errorOptions = {
+        args: [
+          ...scopeArgs,
+          `show`,
+          unit.filename,
+          `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
+        ] as const,
+        cause: status.error,
+        command: `systemctl`,
+        diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
+        stage: `show-status`,
+        unitName: unit.filename,
+        ...(status.error.environmentReason === undefined
+          ? {}
+          : { environmentReason: status.error.environmentReason }),
+      };
       return err(
-        new UnitStartError(`Started ${unit.filename} but failed to query its status`, {
-          args: statusArgs,
-          cause,
-          command: `systemctl`,
-          diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
-          stage: `show-status`,
-          unitName: unit.filename,
-        }),
+        new UnitStartError(`Started ${unit.filename} but failed to query its status`, errorOptions),
       );
     }
-
-    return ok(parseStartStatus(unit.filename, status.stdout));
+    return ok(status.value);
   }
 
   /**
@@ -256,35 +265,36 @@ export class Systemd {
 
     const scopeArgs = this.scopeArgs();
     const lines = options?.lines ?? 50;
-    const command = [
-      `systemctl`,
+    const logs = await this.systemctl.status(unit.filename, {
+      lines,
+    });
+    if (logs.ok) {
+      return ok(joinCommandOutput(logs.value));
+    }
+
+    const errorOutput = extractCommandOutput(logs.error);
+    if (errorOutput !== undefined) {
+      return ok(joinCommandOutput(errorOutput));
+    }
+
+    const args = [
       ...scopeArgs,
       `status`,
       unit.filename,
       `--no-pager`,
       `--lines`,
       String(lines),
-    ]
-      .map(shellQuote)
-      .join(` `);
-    const args = [`-lc`, `${command} 2>&1 || true`] as const;
-    let logs;
-    try {
-      logs = await this.executor(`bash`, args);
-    } catch (cause) {
-      return err(
-        new UnitLogsReadError(`Failed to query logs for ${unit.filename} from systemctl status`, {
-          args,
-          cause,
-          command: `bash`,
-          reason: `status-command-failed`,
-          stage: `status`,
-          unitName: unit.filename,
-        }),
-      );
-    }
-
-    return ok([logs.stdout, logs.stderr].filter((value) => value.length > 0).join(`\n`));
+    ] as const;
+    return err(
+      new UnitLogsReadError(`Failed to query logs for ${unit.filename} from systemctl status`, {
+        args,
+        cause: logs.error,
+        command: `systemctl`,
+        reason: `status-command-failed`,
+        stage: `status`,
+        unitName: unit.filename,
+      }),
+    );
   }
 
   /** Returns the on-disk unit-file path this instance uses for the given unit. */
@@ -301,17 +311,19 @@ export class Systemd {
       const linkPaths = await this.collectLinkPaths(units);
       for (const path of linkPaths) {
         const args = [...scopeArgs, `link`, path] as const;
-        try {
-          await this.executor(`systemctl`, args);
-        } catch (cause) {
+        const linked = await this.systemctl.link(path);
+        if (!linked.ok) {
           const linkedUnit = units.find((candidate) => this.pathFor(candidate) === path);
           const errorContext = {
             args,
-            cause,
+            cause: linked.error,
             command: `systemctl`,
             stage: `link`,
-            ...(linkedUnit === undefined ? {} : { unitName: linkedUnit.filename }),
             unitPath: path,
+            ...(linked.error.environmentReason === undefined
+              ? {}
+              : { environmentReason: linked.error.environmentReason }),
+            ...(linkedUnit === undefined ? {} : { unitName: linkedUnit.filename }),
           };
           throw operation === `enable`
             ? new UnitEnableError(`Failed to link ${path} before enable`, errorContext)
@@ -321,24 +333,21 @@ export class Systemd {
     }
 
     const args = [...scopeArgs, `daemon-reload`] as const;
-    try {
-      await this.executor(`systemctl`, args);
-    } catch (cause) {
+    const reloaded = await this.systemctl.daemonReload();
+    if (!reloaded.ok) {
+      const errorContext = {
+        args,
+        cause: reloaded.error,
+        command: `systemctl`,
+        stage: `daemon-reload`,
+        ...(reloaded.error.environmentReason === undefined
+          ? {}
+          : { environmentReason: reloaded.error.environmentReason }),
+        ...(units[0]?.filename === undefined ? {} : { unitName: units[0].filename }),
+      };
       throw operation === `enable`
-        ? new UnitEnableError(`Failed to reload systemd before enable`, {
-            args,
-            cause,
-            command: `systemctl`,
-            stage: `daemon-reload`,
-            unitName: units[0]?.filename,
-          })
-        : new UnitStartError(`Failed to reload systemd before start`, {
-            args,
-            cause,
-            command: `systemctl`,
-            stage: `daemon-reload`,
-            unitName: units[0]?.filename,
-          });
+        ? new UnitEnableError(`Failed to reload systemd before enable`, errorContext)
+        : new UnitStartError(`Failed to reload systemd before start`, errorContext);
     }
   }
 
@@ -360,38 +369,30 @@ export class Systemd {
       statusOutput?: string;
     } = {};
 
-    const showCommand = [
-      `systemctl`,
+    const showArgs = [
       ...scopeArgs,
       `show`,
       unitName,
       `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
-    ]
-      .map(shellQuote)
-      .join(` `);
-    const show = await this.tryBestEffortCommand(`bash`, [`-lc`, `${showCommand} 2>&1 || true`]);
-    if (show !== undefined && show.length > 0) {
-      diagnostics.showOutput = show;
-      diagnostics.showStatus = parseStartStatus(unitName, show);
+    ] as const;
+    const show = await this.tryBestEffortCommand(`systemctl`, showArgs);
+    if (show !== undefined) {
+      const showOutput = joinCommandOutput(show);
+      if (showOutput.length > 0) {
+        diagnostics.showOutput = showOutput;
+      }
+      if (show.stdout.length > 0) {
+        diagnostics.showStatus = parseStartStatus(unitName, show.stdout);
+      }
     }
 
-    const statusCommand = [
-      `systemctl`,
-      ...scopeArgs,
-      `status`,
-      unitName,
-      `--no-pager`,
-      `--lines`,
-      `20`,
-    ]
-      .map(shellQuote)
-      .join(` `);
-    const status = await this.tryBestEffortCommand(`bash`, [
-      `-lc`,
-      `${statusCommand} 2>&1 || true`,
-    ]);
-    if (status !== undefined && status.length > 0) {
-      diagnostics.statusOutput = status;
+    const statusArgs = [...scopeArgs, `status`, unitName, `--no-pager`, `--lines`, `20`] as const;
+    const status = await this.tryBestEffortCommand(`systemctl`, statusArgs);
+    if (status !== undefined) {
+      const statusOutput = joinCommandOutput(status);
+      if (statusOutput.length > 0) {
+        diagnostics.statusOutput = statusOutput;
+      }
     }
 
     return diagnostics;
@@ -477,11 +478,20 @@ export class Systemd {
   private async tryBestEffortCommand(
     command: string,
     args: readonly string[],
-  ): Promise<string | undefined> {
+  ): Promise<
+    | {
+        readonly stderr: string;
+        readonly stdout: string;
+      }
+    | undefined
+  > {
     try {
-      const output = await this.executor(command, args);
-      return output.stdout;
-    } catch {
+      return await this.executor(command, args);
+    } catch (cause) {
+      const output = extractCommandOutput(cause);
+      if (output !== undefined) {
+        return output;
+      }
       return undefined;
     }
   }
@@ -493,6 +503,10 @@ function ok<TValue>(value: TValue): Result<TValue, never> {
 
 function err<TError>(error: TError): Result<never, TError> {
   return { ok: false, error };
+}
+
+function joinCommandOutput(output: { readonly stderr: string; readonly stdout: string }): string {
+  return [output.stdout, output.stderr].filter((value) => value.length > 0).join(`\n`);
 }
 
 let lazyDefaultSystemd: Systemd | undefined;

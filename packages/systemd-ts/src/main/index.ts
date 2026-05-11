@@ -3,6 +3,7 @@ export {
   InvalidExecDirectiveError,
   NoUnitsProvidedError,
   NotifySendError,
+  SystemctlCommandError,
   SystemdTsError,
   UnitEnableError,
   UnitLogsReadError,
@@ -13,11 +14,13 @@ export { Executable, defineExecutable } from "./executable.ts";
 export { notify } from "./notify.ts";
 export { SystemdService } from "./systemd-service.ts";
 export { SystemdTimer } from "./systemd-timer.ts";
+export { Systemctl } from "./systemctl.ts";
 export { Systemd, SystemdMaterialization, defaultSystemd } from "./systemd.ts";
 export type { Result } from "./internal.ts";
 export type {
   AnySystemdService,
   AnySystemdTimer,
+  CommandExecutionOptions,
   CommandExecutor,
   CommandOutput,
   ExecutableOptions,
@@ -29,6 +32,18 @@ export type {
   StartStatus,
   SystemdOptions,
   SystemdServiceOptions,
+  SystemctlActiveState,
+  SystemctlEnablementState,
+  SystemctlIsEnabledOptions,
+  SystemctlIsSystemRunningOptions,
+  SystemctlListTimersOptions,
+  SystemctlOptions,
+  SystemctlServiceStatus,
+  SystemctlSystemRunningState,
+  SystemctlStateQueryOptions,
+  SystemctlShowOptions,
+  SystemctlStatusOptions,
+  SystemctlTimerListEntry,
   SystemdTimerOptions,
   SystemdUnit,
   TimerBaseName,
@@ -40,6 +55,7 @@ export type {
 } from "./types.ts";
 export type {
   NotifySendErrorReason,
+  SystemctlCommandErrorReason,
   SystemdCommandEnvironmentReason,
   UnitLogsReadErrorReason,
   UnitMaterializationErrorReason,
