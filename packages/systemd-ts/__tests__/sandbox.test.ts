@@ -13,6 +13,7 @@ import {
   UnitLogsReadError,
   UnitStartError,
   notify,
+  type CommandExecutionOptions,
   type CommandOutput,
 } from "../src/main/index.ts";
 import { ensureTestHost, runGuestCommand, runIsolatedGuestCommand } from "../src/test/host.ts";
@@ -599,29 +600,64 @@ function isolatedSandboxSystemd(): Systemd {
 async function guestCommandExecutor(
   command: string,
   args: readonly string[],
+  options: CommandExecutionOptions = {},
 ): Promise<CommandOutput> {
-  const stdout = await runGuestCommand(
-    [command, ...args].map((part) => shellQuote(part)).join(` `),
-  );
-
-  return {
-    stderr: ``,
-    stdout,
-  };
+  try {
+    const stdout = await runGuestCommand(buildGuestCommand(command, args, options));
+    return {
+      stderr: ``,
+      stdout,
+    };
+  } catch (cause) {
+    throw enrichGuestCommandError(cause);
+  }
 }
 
 async function isolatedGuestCommandExecutor(
   command: string,
   args: readonly string[],
+  options: CommandExecutionOptions = {},
 ): Promise<CommandOutput> {
-  const stdout = await runIsolatedGuestCommand(
-    [command, ...args].map((part) => shellQuote(part)).join(` `),
-  );
+  try {
+    const stdout = await runIsolatedGuestCommand(buildGuestCommand(command, args, options));
+    return {
+      stderr: ``,
+      stdout,
+    };
+  } catch (cause) {
+    throw enrichGuestCommandError(cause);
+  }
+}
 
-  return {
+function buildGuestCommand(
+  command: string,
+  args: readonly string[],
+  options: CommandExecutionOptions,
+): string {
+  const envArgs =
+    options.env === undefined
+      ? []
+      : Object.entries(options.env).flatMap(([key, value]) =>
+          value === undefined ? [`-u`, key] : [`${key}=${value}`],
+        );
+
+  return [`env`, ...envArgs, command, ...args].map((part) => shellQuote(part)).join(` `);
+}
+
+function enrichGuestCommandError(cause: unknown): Error {
+  if (cause instanceof Error) {
+    return Object.assign(cause, {
+      code: 1,
+      stderr: ``,
+      stdout: cause.message,
+    });
+  }
+
+  return Object.assign(new Error(`Guest command failed`), {
+    code: 1,
     stderr: ``,
-    stdout,
-  };
+    stdout: ``,
+  });
 }
 
 function shellQuote(value: string): string {

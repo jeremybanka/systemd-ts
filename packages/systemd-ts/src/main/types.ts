@@ -1066,7 +1066,15 @@ export interface CommandOutput {
   readonly stdout: string;
 }
 
-export type CommandExecutor = (command: string, args: readonly string[]) => Promise<CommandOutput>;
+export interface CommandExecutionOptions {
+  readonly env?: Readonly<Record<string, string | undefined>>;
+}
+
+export type CommandExecutor = (
+  command: string,
+  args: readonly string[],
+  options?: CommandExecutionOptions,
+) => Promise<CommandOutput>;
 
 export interface LogsOptions {
   readonly lines?: number;

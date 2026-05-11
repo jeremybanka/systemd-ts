@@ -625,6 +625,31 @@ describe(`systemd-ts unit`, () => {
     });
   });
 
+  test(`returns captured status output even when systemctl exits non-zero`, async () => {
+    const systemd = new Systemd({
+      executor: async () => {
+        throw Object.assign(new Error(`status failed`), {
+          code: 3,
+          stderr: `backup-db.service - failed`,
+          stdout: `Loaded: loaded (/tmp/backup-db.service; static)`,
+        });
+      },
+      unitDir: `/tmp/systemd-ts-logs`,
+    });
+    const service = new SystemdService({
+      name: `backup-db`,
+      service: {
+        ExecStart: `/usr/bin/true`,
+      },
+    });
+
+    const logs = await systemd.logs(service);
+    expect(logs).toEqual({
+      ok: true,
+      value: `Loaded: loaded (/tmp/backup-db.service; static)\nbackup-db.service - failed`,
+    });
+  });
+
   test(`classifies invalid unit directories during materialization`, async () => {
     const fixtureDir = await mkdtemp(join(tmpdir(), `systemd-ts-invalid-unit-dir-`));
     const unitDir = join(fixtureDir, `not-a-directory`);
@@ -737,10 +762,18 @@ describe(`systemd-ts unit`, () => {
   });
 
   test(`reports a structured reason when notify executor delivery fails`, async () => {
+    const calls: Array<{
+      command: string;
+      args: readonly string[];
+      env: Readonly<Record<string, string | undefined>> | undefined;
+    }> = [];
     const result = await notify.ready({
-      executor: async () => {
+      executor: async (command, args, options) => {
+        calls.push({ args, command, env: options?.env });
         throw Object.assign(new Error(`notify exploded`), { code: `ENOENT` });
       },
+      socketPath: `/tmp/systemd-ts-notify.sock`,
+      status: `warming up`,
     });
 
     expect(result).toMatchObject({
@@ -750,6 +783,15 @@ describe(`systemd-ts unit`, () => {
         reason: `executor-failed`,
       } satisfies Partial<NotifySendError>,
     });
+    expect(calls).toEqual([
+      {
+        args: [`--no-block`, `READY=1`, `STATUS=warming up`],
+        command: `systemd-notify`,
+        env: {
+          NOTIFY_SOCKET: `/tmp/systemd-ts-notify.sock`,
+        },
+      },
+    ]);
   });
 
   test(`exposes the low-level systemctl client through Systemd`, async () => {

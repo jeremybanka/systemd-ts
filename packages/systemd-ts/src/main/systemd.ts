@@ -4,9 +4,9 @@ import { join } from "node:path";
 import {
   defaultCommandExecutor,
   defaultUnitDirForScope,
+  extractCommandOutput,
   fileExists,
   parseStartStatus,
-  shellQuote,
   type Result,
 } from "./internal.ts";
 import {
@@ -265,35 +265,36 @@ export class Systemd {
 
     const scopeArgs = this.scopeArgs();
     const lines = options?.lines ?? 50;
-    const command = [
-      `systemctl`,
+    const logs = await this.systemctl.status(unit.filename, {
+      lines,
+    });
+    if (logs.ok) {
+      return ok(joinCommandOutput(logs.value));
+    }
+
+    const errorOutput = extractCommandOutput(logs.error);
+    if (errorOutput !== undefined) {
+      return ok(joinCommandOutput(errorOutput));
+    }
+
+    const args = [
       ...scopeArgs,
       `status`,
       unit.filename,
       `--no-pager`,
       `--lines`,
       String(lines),
-    ]
-      .map(shellQuote)
-      .join(` `);
-    const args = [`-lc`, `${command} 2>&1 || true`] as const;
-    let logs;
-    try {
-      logs = await this.executor(`bash`, args);
-    } catch (cause) {
-      return err(
-        new UnitLogsReadError(`Failed to query logs for ${unit.filename} from systemctl status`, {
-          args,
-          cause,
-          command: `bash`,
-          reason: `status-command-failed`,
-          stage: `status`,
-          unitName: unit.filename,
-        }),
-      );
-    }
-
-    return ok([logs.stdout, logs.stderr].filter((value) => value.length > 0).join(`\n`));
+    ] as const;
+    return err(
+      new UnitLogsReadError(`Failed to query logs for ${unit.filename} from systemctl status`, {
+        args,
+        cause: logs.error,
+        command: `systemctl`,
+        reason: `status-command-failed`,
+        stage: `status`,
+        unitName: unit.filename,
+      }),
+    );
   }
 
   /** Returns the on-disk unit-file path this instance uses for the given unit. */
@@ -368,38 +369,30 @@ export class Systemd {
       statusOutput?: string;
     } = {};
 
-    const showCommand = [
-      `systemctl`,
+    const showArgs = [
       ...scopeArgs,
       `show`,
       unitName,
       `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
-    ]
-      .map(shellQuote)
-      .join(` `);
-    const show = await this.tryBestEffortCommand(`bash`, [`-lc`, `${showCommand} 2>&1 || true`]);
-    if (show !== undefined && show.length > 0) {
-      diagnostics.showOutput = show;
-      diagnostics.showStatus = parseStartStatus(unitName, show);
+    ] as const;
+    const show = await this.tryBestEffortCommand(`systemctl`, showArgs);
+    if (show !== undefined) {
+      const showOutput = joinCommandOutput(show);
+      if (showOutput.length > 0) {
+        diagnostics.showOutput = showOutput;
+      }
+      if (show.stdout.length > 0) {
+        diagnostics.showStatus = parseStartStatus(unitName, show.stdout);
+      }
     }
 
-    const statusCommand = [
-      `systemctl`,
-      ...scopeArgs,
-      `status`,
-      unitName,
-      `--no-pager`,
-      `--lines`,
-      `20`,
-    ]
-      .map(shellQuote)
-      .join(` `);
-    const status = await this.tryBestEffortCommand(`bash`, [
-      `-lc`,
-      `${statusCommand} 2>&1 || true`,
-    ]);
-    if (status !== undefined && status.length > 0) {
-      diagnostics.statusOutput = status;
+    const statusArgs = [...scopeArgs, `status`, unitName, `--no-pager`, `--lines`, `20`] as const;
+    const status = await this.tryBestEffortCommand(`systemctl`, statusArgs);
+    if (status !== undefined) {
+      const statusOutput = joinCommandOutput(status);
+      if (statusOutput.length > 0) {
+        diagnostics.statusOutput = statusOutput;
+      }
     }
 
     return diagnostics;
@@ -485,11 +478,20 @@ export class Systemd {
   private async tryBestEffortCommand(
     command: string,
     args: readonly string[],
-  ): Promise<string | undefined> {
+  ): Promise<
+    | {
+        readonly stderr: string;
+        readonly stdout: string;
+      }
+    | undefined
+  > {
     try {
-      const output = await this.executor(command, args);
-      return output.stdout;
-    } catch {
+      return await this.executor(command, args);
+    } catch (cause) {
+      const output = extractCommandOutput(cause);
+      if (output !== undefined) {
+        return output;
+      }
       return undefined;
     }
   }
@@ -501,6 +503,10 @@ function ok<TValue>(value: TValue): Result<TValue, never> {
 
 function err<TError>(error: TError): Result<never, TError> {
   return { ok: false, error };
+}
+
+function joinCommandOutput(output: { readonly stderr: string; readonly stdout: string }): string {
+  return [output.stdout, output.stderr].filter((value) => value.length > 0).join(`\n`);
 }
 
 let lazyDefaultSystemd: Systemd | undefined;

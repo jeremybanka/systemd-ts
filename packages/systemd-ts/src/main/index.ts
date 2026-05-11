@@ -20,6 +20,7 @@ export type { Result } from "./internal.ts";
 export type {
   AnySystemdService,
   AnySystemdTimer,
+  CommandExecutionOptions,
   CommandExecutor,
   CommandOutput,
   ExecutableOptions,
