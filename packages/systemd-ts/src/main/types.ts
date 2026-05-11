@@ -1071,6 +1071,28 @@ export interface SystemctlStatusOptions {
   readonly noPager?: boolean;
 }
 
+export interface SystemctlListTimersOptions {
+  readonly all?: boolean;
+  readonly noPager?: boolean;
+  readonly patterns?: readonly string[];
+}
+
+/**
+ * The official `systemctl list-timers --output=json` entry shape exposed by
+ * this library.
+ *
+ * Timestamp fields are returned as raw integer values exactly as reported by
+ * `systemctl`, so callers can compose their own normalization strategy.
+ */
+export interface SystemctlTimerListEntry {
+  readonly next: number;
+  readonly left: number;
+  readonly last: number;
+  readonly passed: number;
+  readonly unit: `${string}.timer`;
+  readonly activates: string;
+}
+
 export interface SystemctlIsEnabledOptions {
   readonly full?: boolean;
   readonly quiet?: boolean;

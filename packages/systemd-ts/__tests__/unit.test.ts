@@ -159,6 +159,21 @@ describe(`systemd-ts unit`, () => {
     const systemctl = new Systemctl({
       executor: async (command, args) => {
         calls.push({ command, args });
+        if (args[1] === `list-timers`) {
+          return {
+            stdout: JSON.stringify([
+              {
+                next: 1778463355991577,
+                left: 1778463355991577,
+                last: 0,
+                passed: 0,
+                unit: `backup-db.timer`,
+                activates: `backup-db.service`,
+              },
+            ]),
+            stderr: ``,
+          };
+        }
         return { stdout: ``, stderr: `` };
       },
       scope: `user`,
@@ -175,6 +190,10 @@ describe(`systemd-ts unit`, () => {
       properties: [`Id`, `Description`],
     });
     await systemctl.showStatus(`backup-db.service`);
+    await systemctl.listTimers({
+      all: true,
+      patterns: [`backup-db.timer`],
+    });
     await systemctl.isEnabled(`backup-db.service`);
     await systemctl.isEnabled(`backup-db.service`, {
       full: true,
@@ -209,6 +228,10 @@ describe(`systemd-ts unit`, () => {
           `backup-db.service`,
           `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
         ],
+      },
+      {
+        command: `systemctl`,
+        args: [`--user`, `list-timers`, `--all`, `--no-pager`, `--output=json`, `backup-db.timer`],
       },
       {
         command: `systemctl`,
@@ -287,6 +310,47 @@ describe(`systemd-ts unit`, () => {
     await expect(systemctl.isFailed(`backup-db.service`)).resolves.toBe(`inactive`);
 
     expect(calls).toHaveLength(5);
+  });
+
+  test(`returns the observed typed list-timers json shape`, async () => {
+    const systemctl = new Systemctl({
+      executor: async (_command, args) => {
+        if (args[1] === `list-timers`) {
+          return {
+            stdout: JSON.stringify([
+              {
+                next: 1778463355991577,
+                left: 1778463355991577,
+                last: 0,
+                passed: 0,
+                unit: `backup-db.timer`,
+                activates: `backup-db.service`,
+              },
+            ]),
+            stderr: ``,
+          };
+        }
+
+        return { stdout: ``, stderr: `` };
+      },
+      scope: `user`,
+    });
+
+    await expect(
+      systemctl.listTimers({
+        all: true,
+        patterns: [`backup-db.timer`],
+      }),
+    ).resolves.toEqual([
+      {
+        next: 1778463355991577,
+        left: 1778463355991577,
+        last: 0,
+        passed: 0,
+        unit: `backup-db.timer`,
+        activates: `backup-db.service`,
+      },
+    ]);
   });
 
   test(`renders ExecStart from an executable helper`, () => {

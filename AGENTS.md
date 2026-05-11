@@ -7,6 +7,7 @@
 - Use the `.manpages/` directory as the source of truth when adding or documenting features.
 - `.manpages/` is organized by version to reduce ambiguity and make it easier to extend with new material.
 - Pin dependencies as exactly as practical. Avoid loose ranges like `^`, `~`, or `latest` unless there is a documented reason.
+- When working with timestamps or time-based normalization, always prefer `Temporal` over `Date`.
 - Assume `gh` is available when debugging GitHub Actions workflows and reading PR comments.
 - Never directly modify `CHANGELOG.md`; describe release-facing changes in changesets instead.
 - While the project is pre-`1.0.0`, breaking changes should be released as minor versions and prefixed with `**Breaking change:**` in their changesets.

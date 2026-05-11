@@ -5,10 +5,12 @@ import type {
   StartStatus,
   SystemctlEnablementState,
   SystemctlIsEnabledOptions,
+  SystemctlListTimersOptions,
   SystemctlOptions,
   SystemctlStateQueryOptions,
   SystemctlShowOptions,
   SystemctlStatusOptions,
+  SystemctlTimerListEntry,
 } from "./types.ts";
 
 /**
@@ -121,6 +123,23 @@ export class Systemctl {
       properties: [`Id`, `ActiveState`, `SubState`, `Result`, `ExecMainStatus`],
     });
     return parseStartStatus(unit, output.stdout);
+  }
+
+  /**
+   * Queries `systemctl list-timers` and returns the observed JSON payload
+   * shape directly, with raw integer timestamps left intact.
+   */
+  public async listTimers(
+    options: SystemctlListTimersOptions = {},
+  ): Promise<readonly SystemctlTimerListEntry[]> {
+    const output = await this.run(
+      `list-timers`,
+      ...(options.all ? [`--all`] : []),
+      ...((options.noPager ?? true) ? [`--no-pager`] : []),
+      `--output=json`,
+      ...(options.patterns ?? []),
+    );
+    return JSON.parse(output.stdout) as readonly SystemctlTimerListEntry[];
   }
 
   /** Starts a unit by filename. */
