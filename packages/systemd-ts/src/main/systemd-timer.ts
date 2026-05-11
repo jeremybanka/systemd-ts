@@ -5,6 +5,8 @@ import {
   renderUnitFile,
   resolveTimerTargetUnit,
 } from "./internal.ts";
+import type { ExecutableInferenceError } from "./errors.ts";
+import type { Result } from "./internal.ts";
 import type {
   ExactSystemdTimerOptions,
   SystemdTimerOptions,
@@ -68,7 +70,7 @@ export class SystemdTimer<const TOptions extends SystemdTimerOptions = SystemdTi
   }
 
   /** Renders the timer as a complete unit file. */
-  public render(): string {
+  public render(): Result<string, ExecutableInferenceError> {
     return renderUnitFile([
       [`Unit`, this.unit],
       [`Timer`, this.timer],

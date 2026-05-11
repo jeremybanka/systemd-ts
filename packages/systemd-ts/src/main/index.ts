@@ -1,20 +1,32 @@
+export {
+  ExecutableInferenceError,
+  InvalidExecDirectiveError,
+  NoUnitsProvidedError,
+  NotifySendError,
+  SystemdTsError,
+  UnitEnableError,
+  UnitLogsReadError,
+  UnitMaterializationError,
+  UnitStartError,
+} from "./errors.ts";
 export { Executable, defineExecutable } from "./executable.ts";
 export { notify } from "./notify.ts";
 export { SystemdService } from "./systemd-service.ts";
 export { SystemdTimer } from "./systemd-timer.ts";
-export { Systemd, SystemdMaterializeResult, defaultSystemd } from "./systemd.ts";
+export { Systemd, SystemdMaterialization, defaultSystemd } from "./systemd.ts";
+export type { Result } from "./internal.ts";
 export type {
   AnySystemdService,
   AnySystemdTimer,
   CommandExecutor,
-  CommandResult,
+  CommandOutput,
   ExecutableOptions,
-  InstalledUnit,
+  MaterializedUnit,
   LogsOptions,
   NotifyOptions,
   ServiceBaseName,
   ServiceFilename,
-  StartResult,
+  StartStatus,
   SystemdOptions,
   SystemdServiceOptions,
   SystemdTimerOptions,
@@ -26,6 +38,12 @@ export type {
   UnitValue,
   ValidInstallUnits,
 } from "./types.ts";
+export type {
+  NotifySendErrorReason,
+  SystemdCommandEnvironmentReason,
+  UnitLogsReadErrorReason,
+  UnitMaterializationErrorReason,
+} from "./errors.ts";
 
 import * as I from "./internal.ts";
 /**

@@ -1029,12 +1029,12 @@ export interface SystemdOptions {
   readonly unitDir?: string;
 }
 
-export interface CommandResult {
+export interface CommandOutput {
   readonly stderr: string;
   readonly stdout: string;
 }
 
-export type CommandExecutor = (command: string, args: readonly string[]) => Promise<CommandResult>;
+export type CommandExecutor = (command: string, args: readonly string[]) => Promise<CommandOutput>;
 
 export interface LogsOptions {
   readonly lines?: number;
@@ -1047,7 +1047,7 @@ export interface NotifyOptions {
   readonly status?: string;
 }
 
-export interface StartResult {
+export interface StartStatus {
   readonly activeState: string;
   readonly execMainStatus: number | undefined;
   readonly result: string;
@@ -1086,7 +1086,7 @@ export type AnySystemdService = SystemdService<SystemdServiceOptions>;
 export type AnySystemdTimer = SystemdTimer<SystemdTimerOptions>;
 export type SystemdUnit = AnySystemdService | AnySystemdTimer;
 
-export interface InstalledUnit<TUnit extends SystemdUnit = SystemdUnit> {
+export interface MaterializedUnit<TUnit extends SystemdUnit = SystemdUnit> {
   readonly path: string;
   readonly unit: TUnit;
 }

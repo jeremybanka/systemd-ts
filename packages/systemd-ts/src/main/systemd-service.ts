@@ -5,6 +5,8 @@ import {
   renderUnitFile,
   validateServiceSection,
 } from "./internal.ts";
+import type { ExecutableInferenceError, InvalidExecDirectiveError } from "./errors.ts";
+import type { Result } from "./internal.ts";
 import type {
   ExactSystemdServiceOptions,
   ServiceBaseName,
@@ -63,8 +65,12 @@ export class SystemdService<const TOptions extends SystemdServiceOptions = Syste
    * and `ExecStop`, ensuring they use absolute runtime entrypoints as required
    * by systemd.
    */
-  public render(): string {
-    validateServiceSection(this.service);
+  public render(): Result<string, ExecutableInferenceError | InvalidExecDirectiveError> {
+    const validation = validateServiceSection(this.service);
+    if (!validation.ok) {
+      return validation;
+    }
+
     return renderUnitFile([
       [`Unit`, this.unit],
       [`Service`, this.service],

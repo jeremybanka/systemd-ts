@@ -2,20 +2,27 @@ import { execFile } from "node:child_process";
 import { access } from "node:fs/promises";
 import { promisify } from "node:util";
 
+import { ExecutableInferenceError, InvalidExecDirectiveError, NotifySendError } from "./errors.ts";
 import { Executable } from "./executable.ts";
 import type {
-  AnySystemdService,
-  CommandResult,
+  CommandOutput,
   NotifyOptions,
   SystemdServiceSection,
-  StartResult,
+  StartStatus,
   SystemdServiceOptions,
   SystemdTimerOptions,
-  SystemdUnit,
   UnitValue,
 } from "./types.ts";
-import { SystemdService } from "./systemd-service.ts";
-import { SystemdTimer } from "./systemd-timer.ts";
+
+export type Result<TValue, TError> =
+  | {
+      readonly ok: true;
+      readonly value: TValue;
+    }
+  | {
+      readonly ok: false;
+      readonly error: TError;
+    };
 
 type ExecDirectiveKey = (typeof EXEC_DIRECTIVE_KEYS)[number];
 
@@ -83,37 +90,23 @@ export function cloneUnitSection<TSection extends SectionLike | undefined>(
   return Object.freeze(Object.fromEntries(entries)) as TSection;
 }
 
-export function validateServiceSection(service: SystemdServiceSection): void {
+export function validateServiceSection(
+  service: SystemdServiceSection,
+): Result<void, InvalidExecDirectiveError> {
   for (const key of EXEC_DIRECTIVE_KEYS) {
-    assertAbsoluteExecValue(key, service[key]);
-  }
-}
-
-export function assertInstallableTogether(units: readonly SystemdUnit[]): void {
-  const materializedServices = new Set(
-    units
-      .filter((unit): unit is AnySystemdService => unit instanceof SystemdService)
-      .map((unit) => unit.name),
-  );
-
-  if (materializedServices.size === 0) {
-    return;
-  }
-
-  for (const unit of units) {
-    if (!(unit instanceof SystemdTimer)) {
-      continue;
-    }
-
-    if (!materializedServices.has(unit.targetServiceName)) {
-      throw new Error(
-        `Cannot materialize ${unit.filename} alongside unrelated services: expected ${unit.targetUnit}`,
-      );
+    const validation = assertAbsoluteExecValue(key, service[key]);
+    if (!validation.ok) {
+      return validation;
     }
   }
+
+  return {
+    ok: true,
+    value: undefined,
+  };
 }
 
-export function parseStartResult(unit: string, output: string): StartResult {
+export function parseStartStatus(unit: string, output: string): StartStatus {
   const properties = Object.fromEntries(
     output
       .split(`\n`)
@@ -143,34 +136,59 @@ export function parseStartResult(unit: string, output: string): StartResult {
 
 export function renderUnitFile(
   sections: ReadonlyArray<readonly [string, SectionLike | undefined]>,
-): string {
-  const renderedSections = sections
-    .flatMap(([sectionName, section]) => {
-      if (section === undefined) {
-        return [];
-      }
-
-      const lines = Object.entries(section as Record<string, unknown>).flatMap(([key, value]) => {
-        if (value === undefined) {
+): Result<string, ExecutableInferenceError> {
+  try {
+    const renderedSections = sections
+      .flatMap(([sectionName, section]) => {
+        if (section === undefined) {
           return [];
         }
 
-        if (isUnitValueList(value)) {
-          return value.map((entry) => `${key}=${stringifyUnitValue(entry)}`);
+        const lines: string[] = [];
+        for (const [key, value] of Object.entries(section as Record<string, unknown>)) {
+          if (value === undefined) {
+            continue;
+          }
+
+          if (isUnitValueList(value)) {
+            for (const entry of value) {
+              const rendered = stringifyUnitValue(entry);
+              if (!rendered.ok) {
+                throw rendered.error;
+              }
+              lines.push(`${key}=${rendered.value}`);
+            }
+            continue;
+          }
+
+          const rendered = stringifyUnitValue(value as UnitValue);
+          if (!rendered.ok) {
+            throw rendered.error;
+          }
+          lines.push(`${key}=${rendered.value}`);
         }
 
-        return `${key}=${stringifyUnitValue(value as UnitValue)}`;
-      });
+        if (lines.length === 0) {
+          return [];
+        }
 
-      if (lines.length === 0) {
-        return [];
-      }
+        return [`[${sectionName}]`, ...lines, ``];
+      })
+      .join(`\n`);
 
-      return [`[${sectionName}]`, ...lines, ``];
-    })
-    .join(`\n`);
-
-  return renderedSections.endsWith(`\n`) ? renderedSections : `${renderedSections}\n`;
+    return {
+      ok: true,
+      value: renderedSections.endsWith(`\n`) ? renderedSections : `${renderedSections}\n`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      error:
+        error instanceof ExecutableInferenceError
+          ? error
+          : new ExecutableInferenceError({ cause: error }),
+    };
+  }
 }
 
 export function shellQuote(value: string): string {
@@ -180,7 +198,7 @@ export function shellQuote(value: string): string {
 export async function defaultCommandExecutor(
   command: string,
   args: readonly string[],
-): Promise<CommandResult> {
+): Promise<CommandOutput> {
   const result = await execFileAsync(command, [...args]);
   return {
     stderr: result.stderr,
@@ -211,18 +229,41 @@ export async function sendNotify(
 
   if (options.executor !== undefined) {
     const command = buildNotifyShellCommand(args, options.socketPath);
-    await options.executor(`bash`, [`-lc`, command]);
+    try {
+      await options.executor(`bash`, [`-lc`, command]);
+    } catch (cause) {
+      throw new NotifySendError(
+        `Failed to send systemd notification through the configured executor`,
+        {
+          args: [`-lc`, command],
+          cause,
+          command: `bash`,
+          reason: `executor-failed`,
+          stage: `executor`,
+        },
+      );
+    }
     return;
   }
 
-  const result = await execFileAsync(`systemd-notify`, args, {
-    env: {
-      ...process.env,
-      ...(options.socketPath === undefined ? {} : { NOTIFY_SOCKET: options.socketPath }),
-    },
-  });
+  try {
+    const result = await execFileAsync(`systemd-notify`, args, {
+      env: {
+        ...process.env,
+        ...(options.socketPath === undefined ? {} : { NOTIFY_SOCKET: options.socketPath }),
+      },
+    });
 
-  void result;
+    void result;
+  } catch (cause) {
+    throw new NotifySendError(`Failed to send systemd notification with systemd-notify`, {
+      args,
+      cause,
+      command: `systemd-notify`,
+      reason: `systemd-notify-failed`,
+      stage: `systemd-notify`,
+    });
+  }
 }
 
 function hasServiceSection(
@@ -237,38 +278,67 @@ function hasTimerSection(
   return `timer` in options;
 }
 
-function assertAbsoluteExecValue(key: ExecDirectiveKey, value: unknown): void {
+function assertAbsoluteExecValue(
+  key: ExecDirectiveKey,
+  value: unknown,
+): Result<void, InvalidExecDirectiveError> {
   if (isUnitValueList(value)) {
     for (const entry of value) {
-      assertAbsoluteExecEntry(key, entry);
+      const validation = assertAbsoluteExecEntry(key, entry);
+      if (!validation.ok) {
+        return validation;
+      }
     }
 
-    return;
+    return {
+      ok: true,
+      value: undefined,
+    };
   }
 
-  assertAbsoluteExecEntry(key, value as UnitValue | undefined);
+  return assertAbsoluteExecEntry(key, value as UnitValue | undefined);
 }
 
-function assertAbsoluteExecEntry(key: ExecDirectiveKey, value: UnitValue | undefined): void {
+function assertAbsoluteExecEntry(
+  key: ExecDirectiveKey,
+  value: UnitValue | undefined,
+): Result<void, InvalidExecDirectiveError> {
   if (typeof value === `string` && value.length > 0 && !isAbsoluteExecCommand(value)) {
-    throw new Error(`${key} must use an absolute executable path for systemd`);
+    return {
+      ok: false,
+      error: new InvalidExecDirectiveError(key),
+    };
   }
 
   if (value instanceof Executable && !value.runtimeEntrypoint.startsWith(`/`)) {
-    throw new Error(`${key} must use an absolute executable path for systemd`);
+    return {
+      ok: false,
+      error: new InvalidExecDirectiveError(key),
+    };
   }
+
+  return {
+    ok: true,
+    value: undefined,
+  };
 }
 
-function stringifyUnitValue(value: UnitValue): string {
+function stringifyUnitValue(value: UnitValue): Result<string, ExecutableInferenceError> {
   if (value instanceof Executable) {
     return value.toExecStart();
   }
 
   if (typeof value === `boolean`) {
-    return value ? `true` : `false`;
+    return {
+      ok: true,
+      value: value ? `true` : `false`,
+    };
   }
 
-  return String(value);
+  return {
+    ok: true,
+    value: String(value),
+  };
 }
 
 function isUnitValueList(value: unknown): value is readonly UnitValue[] {
