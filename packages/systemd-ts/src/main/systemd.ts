@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
@@ -31,6 +31,51 @@ import type {
   SystemdUnit,
   ValidInstallUnits,
 } from "./types.ts";
+
+export interface SystemdTsAttachOptions {
+  readonly owner: string;
+  readonly enable?: boolean;
+  readonly start?: boolean;
+}
+
+export interface SystemdTsDetachOptions {
+  readonly deleteUnitFiles?: boolean;
+  readonly disable?: boolean;
+  readonly stop?: boolean;
+}
+
+export interface SystemdTsReattachOptions extends SystemdTsAttachOptions {
+  readonly disableRemoved?: boolean;
+  readonly prune?: boolean;
+  readonly restartUpdated?: boolean;
+  readonly stopRemoved?: boolean;
+}
+
+export interface SystemdTsAttachmentSelector {
+  readonly owner: string;
+}
+
+export interface SystemdTsAttachmentResult {
+  readonly added: readonly string[];
+  readonly directory: string;
+  readonly enabled: readonly string[];
+  readonly manifestPath: string;
+  readonly owner: string;
+  readonly removed: readonly string[];
+  readonly restarted: readonly string[];
+  readonly started: readonly string[];
+  readonly unchanged: readonly string[];
+  readonly updated: readonly string[];
+}
+
+interface AttachmentManifest {
+  readonly owner: string;
+  readonly units: readonly {
+    readonly filename: string;
+    readonly path: string;
+  }[];
+  readonly version: 1;
+}
 
 /**
  * A successful systemd unit materialization.
@@ -72,6 +117,8 @@ export class Systemd {
   public readonly scope: `system` | `user`;
   /** The low-level `systemctl` client for this configured target. */
   public readonly systemctl: Systemctl;
+  /** Higher-level `systemd-ts` upkeep helpers for application-owned units. */
+  public readonly ts: SystemdTs;
   /** The directory used when materializing unit files. */
   public readonly unitDir: string;
 
@@ -91,6 +138,7 @@ export class Systemd {
       executor: this.executor,
       scope: this.scope,
     });
+    this.ts = new SystemdTs(this);
     Object.freeze(this);
   }
 
@@ -494,6 +542,380 @@ export class Systemd {
       }
       return undefined;
     }
+  }
+}
+
+/**
+ * Opinionated `systemd-ts` upkeep helpers for application-owned units.
+ *
+ * This layer is intentionally analogous to a subset of `portablectl`'s
+ * ownership workflow, but it operates on regular materialized units instead of
+ * portable service images.
+ */
+export class SystemdTs {
+  private readonly systemd: Systemd;
+
+  public constructor(systemd: Systemd) {
+    this.systemd = systemd;
+    Object.freeze(this);
+  }
+
+  public async attach(
+    units: readonly SystemdUnit[],
+    options: SystemdTsAttachOptions,
+  ): Promise<
+    Result<
+      SystemdTsAttachmentResult,
+      | ExecutableInferenceError
+      | InvalidExecDirectiveError
+      | NoUnitsProvidedError
+      | UnitEnableError
+      | UnitMaterializationError
+      | UnitStartError
+    >
+  > {
+    if (units.length === 0) {
+      return err(new NoUnitsProvidedError(`Systemd.ts.attach()`));
+    }
+
+    const described = await this.describeUnits(units);
+    if (!described.ok) {
+      return described;
+    }
+
+    const manifestPath = this.manifestPathFor(options.owner);
+    const prior = await this.readManifest(options.owner);
+    const diff = await this.diffManifest(prior, described.value);
+    const materialized = await this.systemd.materialize(...(units as readonly SystemdUnit[]));
+    if (!materialized.ok) {
+      return materialized;
+    }
+
+    const enabled: string[] = [];
+    if (options.enable ?? false) {
+      const result = await this.systemd.enable(...units);
+      if (!result.ok) {
+        return result;
+      }
+      enabled.push(...units.map((unit) => unit.filename));
+    }
+
+    const started: string[] = [];
+    if (options.start ?? false) {
+      for (const unit of units) {
+        const result = await this.systemd.start(unit);
+        if (!result.ok) {
+          return result;
+        }
+        started.push(unit.filename);
+      }
+    }
+
+    await this.writeManifest(options.owner, described.value);
+
+    return ok({
+      added: diff.added,
+      directory: this.systemd.unitDir,
+      enabled,
+      manifestPath,
+      owner: options.owner,
+      removed: diff.removed,
+      restarted: [],
+      started,
+      unchanged: diff.unchanged,
+      updated: diff.updated,
+    });
+  }
+
+  public async detach(
+    selector: SystemdTsAttachmentSelector,
+    options: SystemdTsDetachOptions = {},
+  ): Promise<
+    Result<
+      {
+        readonly deleted: readonly string[];
+        readonly detached: readonly string[];
+        readonly disabled: readonly string[];
+        readonly owner: string;
+        readonly stopped: readonly string[];
+      },
+      Error
+    >
+  > {
+    const manifest = await this.readManifest(selector.owner);
+    if (manifest === undefined) {
+      return ok({
+        deleted: [],
+        detached: [],
+        disabled: [],
+        owner: selector.owner,
+        stopped: [],
+      });
+    }
+
+    const filenames = manifest.units.map((unit) => unit.filename);
+    const deleted: string[] = [];
+    const disabled: string[] = [];
+    const stopped: string[] = [];
+
+    if (options.stop ?? true) {
+      await this.runSystemctl(`stop`, filenames);
+      stopped.push(...filenames);
+    }
+    if (options.disable ?? true) {
+      await this.runSystemctl(`disable`, filenames);
+      disabled.push(...filenames);
+    }
+    if (options.deleteUnitFiles ?? true) {
+      for (const unit of manifest.units) {
+        await this.removeManagedUnitPath(unit.path);
+        await rm(unit.path, { force: true });
+        deleted.push(unit.filename);
+      }
+      await this.runSystemctl(`daemon-reload`);
+    }
+
+    await rm(this.manifestPathFor(selector.owner), { force: true });
+
+    return ok({
+      deleted,
+      detached: filenames,
+      disabled,
+      owner: selector.owner,
+      stopped,
+    });
+  }
+
+  public async reattach(
+    units: readonly SystemdUnit[],
+    options: SystemdTsReattachOptions,
+  ): Promise<
+    Result<
+      SystemdTsAttachmentResult,
+      | ExecutableInferenceError
+      | InvalidExecDirectiveError
+      | NoUnitsProvidedError
+      | UnitEnableError
+      | UnitMaterializationError
+      | UnitStartError
+      | Error
+    >
+  > {
+    if (units.length === 0) {
+      return err(new NoUnitsProvidedError(`Systemd.ts.reattach()`));
+    }
+
+    const described = await this.describeUnits(units);
+    if (!described.ok) {
+      return described;
+    }
+
+    const manifestPath = this.manifestPathFor(options.owner);
+    const prior = await this.readManifest(options.owner);
+    const diff = await this.diffManifest(prior, described.value);
+
+    if ((options.stopRemoved ?? true) && diff.removed.length > 0) {
+      await this.runSystemctl(`stop`, diff.removed);
+    }
+    if ((options.disableRemoved ?? true) && diff.removed.length > 0) {
+      await this.runSystemctl(`disable`, diff.removed);
+    }
+    if ((options.prune ?? true) && prior !== undefined) {
+      for (const unit of prior.units) {
+        if (!diff.removed.includes(unit.filename)) {
+          continue;
+        }
+        await this.removeManagedUnitPath(unit.path);
+        await rm(unit.path, { force: true });
+      }
+      if (diff.removed.length > 0) {
+        await this.runSystemctl(`daemon-reload`);
+      }
+    }
+
+    const materialized = await this.systemd.materialize(...(units as readonly SystemdUnit[]));
+    if (!materialized.ok) {
+      return materialized;
+    }
+
+    const enabled: string[] = [];
+    if (options.enable ?? false) {
+      const result = await this.systemd.enable(...units);
+      if (!result.ok) {
+        return result;
+      }
+      enabled.push(...units.map((unit) => unit.filename));
+    }
+
+    const restarted: string[] = [];
+    if (options.restartUpdated ?? false) {
+      const restartable = units
+        .filter((unit) => diff.updated.includes(unit.filename))
+        .map((unit) => unit.filename);
+      if (restartable.length > 0) {
+        await this.runSystemctl(`restart`, restartable);
+        restarted.push(...restartable);
+      }
+    }
+
+    const started: string[] = [];
+    if (options.start ?? false) {
+      for (const unit of units) {
+        if (restarted.includes(unit.filename)) {
+          continue;
+        }
+        const result = await this.systemd.start(unit);
+        if (!result.ok) {
+          return result;
+        }
+        started.push(unit.filename);
+      }
+    }
+
+    await this.writeManifest(options.owner, described.value);
+
+    return ok({
+      added: diff.added,
+      directory: this.systemd.unitDir,
+      enabled,
+      manifestPath,
+      owner: options.owner,
+      removed: diff.removed,
+      restarted,
+      started,
+      unchanged: diff.unchanged,
+      updated: diff.updated,
+    });
+  }
+
+  private async describeUnits(units: readonly SystemdUnit[]): Promise<
+    Result<
+      readonly {
+        readonly filename: string;
+        readonly path: string;
+        readonly rendered: string;
+      }[],
+      ExecutableInferenceError | InvalidExecDirectiveError
+    >
+  > {
+    const described = [];
+    for (const unit of units) {
+      const rendered = unit.render();
+      if (!rendered.ok) {
+        return rendered;
+      }
+      described.push({
+        filename: unit.filename,
+        path: this.systemd.pathFor(unit),
+        rendered: rendered.value,
+      });
+    }
+
+    return ok(described);
+  }
+
+  private async diffManifest(
+    prior: AttachmentManifest | undefined,
+    desired: readonly {
+      readonly filename: string;
+      readonly path: string;
+      readonly rendered: string;
+    }[],
+  ): Promise<{
+    readonly added: readonly string[];
+    readonly removed: readonly string[];
+    readonly unchanged: readonly string[];
+    readonly updated: readonly string[];
+  }> {
+    const priorUnits = new Map(prior?.units.map((unit) => [unit.filename, unit.path]) ?? []);
+    const desiredNames = new Set(desired.map((unit) => unit.filename));
+    const added: string[] = [];
+    const removed = [...priorUnits.keys()].filter((filename) => !desiredNames.has(filename));
+    const unchanged: string[] = [];
+    const updated: string[] = [];
+
+    for (const unit of desired) {
+      const priorPath = priorUnits.get(unit.filename);
+      if (priorPath === undefined) {
+        added.push(unit.filename);
+        continue;
+      }
+
+      try {
+        const current = await readFile(priorPath, `utf8`);
+        if (current === unit.rendered) {
+          unchanged.push(unit.filename);
+          continue;
+        }
+      } catch {
+        added.push(unit.filename);
+        continue;
+      }
+
+      updated.push(unit.filename);
+    }
+
+    return {
+      added,
+      removed,
+      unchanged,
+      updated,
+    };
+  }
+
+  private async manifestDir(): Promise<string> {
+    const directory = join(this.systemd.unitDir, `.systemd-ts`);
+    await mkdir(directory, { recursive: true });
+    return directory;
+  }
+
+  private manifestPathFor(owner: string): string {
+    return join(this.systemd.unitDir, `.systemd-ts`, `${encodeURIComponent(owner)}.json`);
+  }
+
+  private async readManifest(owner: string): Promise<AttachmentManifest | undefined> {
+    try {
+      const content = await readFile(this.manifestPathFor(owner), `utf8`);
+      return JSON.parse(content) as AttachmentManifest;
+    } catch {
+      return undefined;
+    }
+  }
+
+  private async runSystemctl(action: string, units: readonly string[] = []): Promise<void> {
+    const args =
+      action === `daemon-reload`
+        ? [...this.scopeArgs(), action]
+        : [...this.scopeArgs(), action, ...units];
+    await this.systemd.executor(`systemctl`, args);
+  }
+
+  private async removeManagedUnitPath(path: string): Promise<void> {
+    await this.systemd.executor(`rm`, [`-f`, path]);
+  }
+
+  private scopeArgs(): readonly string[] {
+    return this.systemd.scope === `user` ? [`--user`] : [];
+  }
+
+  private async writeManifest(
+    owner: string,
+    units: readonly {
+      readonly filename: string;
+      readonly path: string;
+      readonly rendered: string;
+    }[],
+  ): Promise<void> {
+    await this.manifestDir();
+    const manifest: AttachmentManifest = {
+      owner,
+      units: units.map((unit) => ({
+        filename: unit.filename,
+        path: unit.path,
+      })),
+      version: 1,
+    };
+    await writeFile(this.manifestPathFor(owner), JSON.stringify(manifest, null, 2), `utf8`);
   }
 }
 

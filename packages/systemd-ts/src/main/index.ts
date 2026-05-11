@@ -15,7 +15,14 @@ export { notify } from "./notify.ts";
 export { SystemdService } from "./systemd-service.ts";
 export { SystemdTimer } from "./systemd-timer.ts";
 export { Systemctl } from "./systemctl.ts";
-export { Systemd, SystemdMaterialization, defaultSystemd } from "./systemd.ts";
+export { Systemd, SystemdMaterialization, SystemdTs, defaultSystemd } from "./systemd.ts";
+export type {
+  SystemdTsAttachmentSelector,
+  SystemdTsAttachOptions,
+  SystemdTsAttachmentResult,
+  SystemdTsDetachOptions,
+  SystemdTsReattachOptions,
+} from "./systemd.ts";
 export type { Result } from "./internal.ts";
 export type {
   AnySystemdService,

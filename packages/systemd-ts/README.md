@@ -4,14 +4,21 @@
 
 It is designed around a few practical jobs:
 
+- keep application-owned units defined in `.timer` and `.service`up to date from TypeScript
 - use `systemctl` from TypeScript
 - define a service from TypeScript
 - define a service that runs on a timer from TypeScript
 - keep the code that runs the job close to the code that defines the service and timer
 
-The library is intentionally close to `systemd` itself. You still work with
-real service units, timer units, and `systemctl` concepts, but you get a
-TypeScript-native way to define them, materialize them, and manage them.
+The library has two layers:
+
+- `systemd.ts.*` is the code-owned upkeep layer for attaching, reattaching, and
+  detaching application-managed units.
+- `systemd.*` stays close to raw `systemd` concepts like materializing units and
+  starting them directly.
+
+That lets the README start from the application code story without giving up a
+lower-level `systemd` surface when you want it.
 
 It is also a good place to learn `systemd` itself. The unit directives are
 deeply typed, documented in the TypeScript surface, and maintained against
@@ -20,6 +27,60 @@ explore what `systemd` can do without starting from loose strings and scattered
 shell examples.
 
 ## What It Can Do
+
+### Keep application-owned units up to date
+
+If your application owns a service or timer and wants to keep that unit set up
+to date across reinstalls, updates, or reconfiguration, use `systemd.ts`.
+
+```ts
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+import backupJob from "./backup-job.ts";
+import { Systemd, SystemdService, SystemdTimer } from "systemd-ts";
+
+const systemd = new Systemd({
+  scope: `user`,
+  unitDir: join(homedir(), `.config/systemd/user`),
+  linkUnits: true,
+});
+
+const service = new SystemdService({
+  name: `backup-db`,
+  service: {
+    Type: `oneshot`,
+    ExecStart: backupJob,
+  },
+});
+
+const timer = new SystemdTimer({
+  name: `backup-db`,
+  timer: {
+    OnCalendar: `daily`,
+    Persistent: true,
+    Unit: service.filename,
+  },
+  install: {
+    WantedBy: `timers.target`,
+  },
+});
+
+const attached = await systemd.ts.reattach([service, timer], {
+  owner: `com.example.backup-db`,
+  enable: true,
+  start: true,
+  prune: true,
+});
+if (!attached.ok) {
+  throw attached.error;
+}
+```
+
+This is the highest-level upkeep workflow in the library. It is designed for
+desktop apps, self-updating agents, OTA-managed software, and other code-owned
+service setups where the application itself is responsible for the unit set it
+maintains.
 
 ### Use `systemctl` from TypeScript
 
@@ -156,8 +217,57 @@ Most applications use the library in a flow like this:
 
 1. Define a `SystemdService`
 2. Optionally define a matching `SystemdTimer`
-3. Materialize those units into a real unit directory with `Systemd`
-4. Enable or start them with `Systemd`, or inspect them with `Systemctl`
+3. Reattach the desired unit set through `systemd.ts`
+4. Inspect or control units directly through `Systemctl` or `Systemd` when needed
+
+```ts
+import { homedir } from "node:os";
+import { join } from "node:path";
+
+import backupJob from "./backup-job.ts";
+import { Systemd, SystemdService, SystemdTimer } from "systemd-ts";
+
+const systemd = new Systemd({
+  scope: `user`,
+  unitDir: join(homedir(), `.config/systemd/user`),
+  linkUnits: true,
+});
+
+const service = new SystemdService({
+  name: `backup-db`,
+  service: {
+    Type: `oneshot`,
+    ExecStart: backupJob,
+  },
+});
+
+const timer = new SystemdTimer({
+  name: `backup-db`,
+  timer: {
+    OnCalendar: `daily`,
+    Persistent: true,
+    Unit: service.filename,
+  },
+  install: {
+    WantedBy: `timers.target`,
+  },
+});
+
+const reattached = await systemd.ts.reattach([service, timer], {
+  owner: `com.example.backup-db`,
+  enable: true,
+  start: true,
+  prune: true,
+});
+if (!reattached.ok) {
+  throw reattached.error;
+}
+```
+
+### Using The `Systemd` API Directly
+
+If you want to stay closer to raw `systemd` operations, use the lower-level
+`Systemd` methods directly:
 
 ```ts
 import { homedir } from "node:os";
@@ -207,6 +317,10 @@ if (!started.ok) {
   throw started.error;
 }
 ```
+
+This lower-level flow is useful when you want exact control over
+materialization, enablement, or startup behavior without going through the
+code-owned upkeep layer.
 
 ## Explore Further
 
