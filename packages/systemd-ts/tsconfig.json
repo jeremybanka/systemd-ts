@@ -3,6 +3,7 @@
   "include": ["src", "__tests__/**/*.ts", "vite.config.ts"],
   "compilerOptions": {
     "declaration": true,
+    "declarationMap": true,
     "isolatedDeclarations": true,
     "types": ["node"]
   }
