@@ -1,4 +1,6 @@
 import { defaultCommandExecutor, parseStartStatus } from "./internal.ts";
+import { SystemctlCommandError } from "./errors.ts";
+import type { Result } from "./internal.ts";
 import type {
   CommandExecutor,
   CommandOutput,
@@ -33,17 +35,17 @@ export class Systemctl {
   }
 
   /** Reloads the targeted systemd manager. */
-  public async daemonReload(): Promise<CommandOutput> {
+  public async daemonReload(): Promise<Result<CommandOutput, SystemctlCommandError>> {
     return this.run(`daemon-reload`);
   }
 
   /** Enables a unit by filename. */
-  public async enable(unit: string): Promise<CommandOutput> {
+  public async enable(unit: string): Promise<Result<CommandOutput, SystemctlCommandError>> {
     return this.run(`enable`, unit);
   }
 
   /** Links a unit file path into the targeted manager. */
-  public async link(path: string): Promise<CommandOutput> {
+  public async link(path: string): Promise<Result<CommandOutput, SystemctlCommandError>> {
     return this.run(`link`, path);
   }
 
@@ -56,14 +58,17 @@ export class Systemctl {
   public async isEnabled(
     unit: string,
     options: SystemctlIsEnabledOptions = {},
-  ): Promise<SystemctlEnablementState> {
+  ): Promise<Result<SystemctlEnablementState, SystemctlCommandError>> {
     const output = await this.run(
       `is-enabled`,
       ...(options.full ? [`--full`] : []),
       ...(options.quiet ? [`--quiet`] : []),
       unit,
     );
-    return firstNonEmptyOutputLine(output) as SystemctlEnablementState;
+    if (!output.ok) {
+      return output;
+    }
+    return ok(firstNonEmptyOutputLine(output.value) as SystemctlEnablementState);
   }
 
   /**
@@ -72,9 +77,15 @@ export class Systemctl {
    * Unless `quiet` is set, this returns the state string printed by
    * `systemctl is-active`.
    */
-  public async isActive(unit: string, options: SystemctlStateQueryOptions = {}): Promise<string> {
+  public async isActive(
+    unit: string,
+    options: SystemctlStateQueryOptions = {},
+  ): Promise<Result<string, SystemctlCommandError>> {
     const output = await this.run(`is-active`, ...(options.quiet ? [`--quiet`] : []), unit);
-    return firstNonEmptyOutputLine(output);
+    if (!output.ok) {
+      return output;
+    }
+    return ok(firstNonEmptyOutputLine(output.value));
   }
 
   /**
@@ -83,9 +94,15 @@ export class Systemctl {
    * Unless `quiet` is set, this returns the state string printed by
    * `systemctl is-failed`.
    */
-  public async isFailed(unit: string, options: SystemctlStateQueryOptions = {}): Promise<string> {
+  public async isFailed(
+    unit: string,
+    options: SystemctlStateQueryOptions = {},
+  ): Promise<Result<string, SystemctlCommandError>> {
     const output = await this.run(`is-failed`, ...(options.quiet ? [`--quiet`] : []), unit);
-    return firstNonEmptyOutputLine(output);
+    if (!output.ok) {
+      return output;
+    }
+    return ok(firstNonEmptyOutputLine(output.value));
   }
 
   /**
@@ -93,7 +110,10 @@ export class Systemctl {
    *
    * When `properties` are provided, only those properties are requested.
    */
-  public async show(unit: string, options: SystemctlShowOptions = {}): Promise<CommandOutput> {
+  public async show(
+    unit: string,
+    options: SystemctlShowOptions = {},
+  ): Promise<Result<CommandOutput, SystemctlCommandError>> {
     const propertyFlag =
       options.properties === undefined || options.properties.length === 0
         ? []
@@ -109,20 +129,26 @@ export class Systemctl {
   public async showProperties(
     unit: string,
     options: SystemctlShowOptions = {},
-  ): Promise<Readonly<Record<string, string>>> {
+  ): Promise<Result<Readonly<Record<string, string>>, SystemctlCommandError>> {
     const output = await this.show(unit, options);
-    return parseSystemctlShowOutput(output.stdout);
+    if (!output.ok) {
+      return output;
+    }
+    return ok(parseSystemctlShowOutput(output.value.stdout));
   }
 
   /**
    * Queries the standard status-related `show` properties for a unit and
    * returns a parsed snapshot.
    */
-  public async showStatus(unit: string): Promise<StartStatus> {
+  public async showStatus(unit: string): Promise<Result<StartStatus, SystemctlCommandError>> {
     const output = await this.show(unit, {
       properties: [`Id`, `ActiveState`, `SubState`, `Result`, `ExecMainStatus`],
     });
-    return parseStartStatus(unit, output.stdout);
+    if (!output.ok) {
+      return output;
+    }
+    return ok(parseStartStatus(unit, output.value.stdout));
   }
 
   /**
@@ -131,19 +157,35 @@ export class Systemctl {
    */
   public async listTimers(
     options: SystemctlListTimersOptions = {},
-  ): Promise<readonly SystemctlTimerListEntry[]> {
-    const output = await this.run(
+  ): Promise<Result<readonly SystemctlTimerListEntry[], SystemctlCommandError>> {
+    const args = [
       `list-timers`,
       ...(options.all ? [`--all`] : []),
       ...((options.noPager ?? true) ? [`--no-pager`] : []),
       `--output=json`,
       ...(options.patterns ?? []),
-    );
-    return JSON.parse(output.stdout) as readonly SystemctlTimerListEntry[];
+    ] as const;
+    const output = await this.run(...args);
+    if (!output.ok) {
+      return output;
+    }
+    try {
+      return ok(JSON.parse(output.value.stdout) as readonly SystemctlTimerListEntry[]);
+    } catch (cause) {
+      return err(
+        new SystemctlCommandError(`Failed to parse JSON output from systemctl list-timers`, {
+          args: [...this.scopeArgs(), ...args],
+          cause,
+          command: `systemctl`,
+          operation: `list-timers`,
+          reason: `invalid-json`,
+        }),
+      );
+    }
   }
 
   /** Starts a unit by filename. */
-  public async start(unit: string): Promise<CommandOutput> {
+  public async start(unit: string): Promise<Result<CommandOutput, SystemctlCommandError>> {
     return this.run(`start`, unit);
   }
 
@@ -153,7 +195,10 @@ export class Systemctl {
    * This is primarily a human-oriented command and is best paired with
    * `show()` when structured state is needed.
    */
-  public async status(unit: string, options: SystemctlStatusOptions = {}): Promise<CommandOutput> {
+  public async status(
+    unit: string,
+    options: SystemctlStatusOptions = {},
+  ): Promise<Result<CommandOutput, SystemctlCommandError>> {
     const args = [`status`, unit] as string[];
     if (options.noPager ?? true) {
       args.push(`--no-pager`);
@@ -166,13 +211,36 @@ export class Systemctl {
   }
 
   /** Executes a raw `systemctl` invocation with scope-aware arguments. */
-  public async run(...args: readonly string[]): Promise<CommandOutput> {
-    return this.executor(`systemctl`, [...this.scopeArgs(), ...args]);
+  public async run(
+    ...args: readonly string[]
+  ): Promise<Result<CommandOutput, SystemctlCommandError>> {
+    const scopedArgs = [...this.scopeArgs(), ...args];
+    try {
+      return ok(await this.executor(`systemctl`, scopedArgs));
+    } catch (cause) {
+      return err(
+        new SystemctlCommandError(`Failed to run systemctl ${args[0] ?? `command`}`, {
+          args: scopedArgs,
+          cause,
+          command: `systemctl`,
+          operation: args[0],
+          reason: `executor-failed`,
+        }),
+      );
+    }
   }
 
   private scopeArgs(): readonly string[] {
     return this.scope === `user` ? [`--user`] : [];
   }
+}
+
+function ok<TValue>(value: TValue): Result<TValue, never> {
+  return { ok: true, value };
+}
+
+function err<TError>(error: TError): Result<never, TError> {
+  return { ok: false, error };
 }
 
 function parseSystemctlShowOutput(output: string): Readonly<Record<string, string>> {

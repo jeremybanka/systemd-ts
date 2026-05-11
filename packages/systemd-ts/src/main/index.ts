@@ -3,6 +3,7 @@ export {
   InvalidExecDirectiveError,
   NoUnitsProvidedError,
   NotifySendError,
+  SystemctlCommandError,
   SystemdTsError,
   UnitEnableError,
   UnitLogsReadError,
@@ -49,6 +50,7 @@ export type {
 } from "./types.ts";
 export type {
   NotifySendErrorReason,
+  SystemctlCommandErrorReason,
   SystemdCommandEnvironmentReason,
   UnitLogsReadErrorReason,
   UnitMaterializationErrorReason,

@@ -147,18 +147,19 @@ export class Systemd {
 
     for (const unit of units) {
       const args = [...scopeArgs, `enable`, unit.filename] as const;
-      try {
-        await this.systemctl.enable(unit.filename);
-      } catch (cause) {
-        return err(
-          new UnitEnableError(`Failed to enable ${unit.filename}`, {
-            args,
-            cause,
-            command: `systemctl`,
-            stage: `enable`,
-            unitName: unit.filename,
-          }),
-        );
+      const enabled = await this.systemctl.enable(unit.filename);
+      if (!enabled.ok) {
+        const errorOptions = {
+          args,
+          cause: enabled.error,
+          command: `systemctl`,
+          stage: `enable`,
+          unitName: unit.filename,
+          ...(enabled.error.environmentReason === undefined
+            ? {}
+            : { environmentReason: enabled.error.environmentReason }),
+        };
+        return err(new UnitEnableError(`Failed to enable ${unit.filename}`, errorOptions));
       }
     }
 
@@ -192,40 +193,45 @@ export class Systemd {
     }
 
     const startArgs = [...scopeArgs, `start`, unit.filename] as const;
-    try {
-      await this.systemctl.start(unit.filename);
-    } catch (cause) {
-      return err(
-        new UnitStartError(`Failed to start ${unit.filename}`, {
-          args: startArgs,
-          cause,
-          command: `systemctl`,
-          diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
-          stage: `start`,
-          unitName: unit.filename,
-        }),
-      );
+    const started = await this.systemctl.start(unit.filename);
+    if (!started.ok) {
+      const errorOptions = {
+        args: startArgs,
+        cause: started.error,
+        command: `systemctl`,
+        diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
+        stage: `start`,
+        unitName: unit.filename,
+        ...(started.error.environmentReason === undefined
+          ? {}
+          : { environmentReason: started.error.environmentReason }),
+      };
+      return err(new UnitStartError(`Failed to start ${unit.filename}`, errorOptions));
     }
 
-    try {
-      return ok(await this.systemctl.showStatus(unit.filename));
-    } catch (cause) {
+    const status = await this.systemctl.showStatus(unit.filename);
+    if (!status.ok) {
+      const errorOptions = {
+        args: [
+          ...scopeArgs,
+          `show`,
+          unit.filename,
+          `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
+        ] as const,
+        cause: status.error,
+        command: `systemctl`,
+        diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
+        stage: `show-status`,
+        unitName: unit.filename,
+        ...(status.error.environmentReason === undefined
+          ? {}
+          : { environmentReason: status.error.environmentReason }),
+      };
       return err(
-        new UnitStartError(`Started ${unit.filename} but failed to query its status`, {
-          args: [
-            ...scopeArgs,
-            `show`,
-            unit.filename,
-            `--property=Id,ActiveState,SubState,Result,ExecMainStatus`,
-          ] as const,
-          cause,
-          command: `systemctl`,
-          diagnostics: await this.collectStartDiagnostics(scopeArgs, unit.filename),
-          stage: `show-status`,
-          unitName: unit.filename,
-        }),
+        new UnitStartError(`Started ${unit.filename} but failed to query its status`, errorOptions),
       );
     }
+    return ok(status.value);
   }
 
   /**
@@ -304,17 +310,19 @@ export class Systemd {
       const linkPaths = await this.collectLinkPaths(units);
       for (const path of linkPaths) {
         const args = [...scopeArgs, `link`, path] as const;
-        try {
-          await this.systemctl.link(path);
-        } catch (cause) {
+        const linked = await this.systemctl.link(path);
+        if (!linked.ok) {
           const linkedUnit = units.find((candidate) => this.pathFor(candidate) === path);
           const errorContext = {
             args,
-            cause,
+            cause: linked.error,
             command: `systemctl`,
             stage: `link`,
-            ...(linkedUnit === undefined ? {} : { unitName: linkedUnit.filename }),
             unitPath: path,
+            ...(linked.error.environmentReason === undefined
+              ? {}
+              : { environmentReason: linked.error.environmentReason }),
+            ...(linkedUnit === undefined ? {} : { unitName: linkedUnit.filename }),
           };
           throw operation === `enable`
             ? new UnitEnableError(`Failed to link ${path} before enable`, errorContext)
@@ -324,24 +332,21 @@ export class Systemd {
     }
 
     const args = [...scopeArgs, `daemon-reload`] as const;
-    try {
-      await this.systemctl.daemonReload();
-    } catch (cause) {
+    const reloaded = await this.systemctl.daemonReload();
+    if (!reloaded.ok) {
+      const errorContext = {
+        args,
+        cause: reloaded.error,
+        command: `systemctl`,
+        stage: `daemon-reload`,
+        ...(reloaded.error.environmentReason === undefined
+          ? {}
+          : { environmentReason: reloaded.error.environmentReason }),
+        ...(units[0]?.filename === undefined ? {} : { unitName: units[0].filename }),
+      };
       throw operation === `enable`
-        ? new UnitEnableError(`Failed to reload systemd before enable`, {
-            args,
-            cause,
-            command: `systemctl`,
-            stage: `daemon-reload`,
-            unitName: units[0]?.filename,
-          })
-        : new UnitStartError(`Failed to reload systemd before start`, {
-            args,
-            cause,
-            command: `systemctl`,
-            stage: `daemon-reload`,
-            unitName: units[0]?.filename,
-          });
+        ? new UnitEnableError(`Failed to reload systemd before enable`, errorContext)
+        : new UnitStartError(`Failed to reload systemd before start`, errorContext);
     }
   }
 

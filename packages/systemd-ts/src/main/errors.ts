@@ -8,6 +8,7 @@ export type SystemdTsErrorCode =
   | `SYSTEMD_TS_UNIT_ENABLE`
   | `SYSTEMD_TS_UNIT_START`
   | `SYSTEMD_TS_UNIT_LOGS`
+  | `SYSTEMD_TS_SYSTEMCTL`
   | `SYSTEMD_TS_NOTIFY_SEND`;
 
 export interface SystemdTsErrorOptions {
@@ -60,6 +61,13 @@ export interface NotifySendErrorOptions extends SystemdCommandErrorOptions {
 }
 
 export type NotifySendErrorReason = `executor-failed` | `systemd-notify-failed`;
+
+export interface SystemctlCommandErrorOptions extends SystemdCommandErrorOptions {
+  readonly operation?: string;
+  readonly reason?: SystemctlCommandErrorReason;
+}
+
+export type SystemctlCommandErrorReason = `executor-failed` | `invalid-json`;
 
 export type SystemdCommandEnvironmentReason =
   | `manager-unavailable`
@@ -234,6 +242,33 @@ export class NotifySendError extends SystemdTsError {
     this.environmentReason =
       options.environmentReason ?? classifyCommandEnvironmentReason(options.cause);
     this.exitCode = details.exitCode;
+    this.reason = options.reason;
+    this.stage = options.stage;
+    this.stderr = details.stderr;
+    this.stdout = details.stdout;
+  }
+}
+
+export class SystemctlCommandError extends SystemdTsError {
+  public readonly args: readonly string[] | undefined;
+  public readonly command: string | undefined;
+  public readonly environmentReason: SystemdCommandEnvironmentReason | undefined;
+  public readonly exitCode: number | undefined;
+  public readonly operation: string | undefined;
+  public readonly reason: SystemctlCommandErrorReason | undefined;
+  public readonly stage: string | undefined;
+  public readonly stderr: string | undefined;
+  public readonly stdout: string | undefined;
+
+  public constructor(message: string, options: SystemctlCommandErrorOptions = {}) {
+    super(`SYSTEMD_TS_SYSTEMCTL`, message, options);
+    const details = extractCommandErrorDetails(options.cause);
+    this.args = options.args;
+    this.command = options.command;
+    this.environmentReason =
+      options.environmentReason ?? classifyCommandEnvironmentReason(options.cause);
+    this.exitCode = details.exitCode;
+    this.operation = options.operation;
     this.reason = options.reason;
     this.stage = options.stage;
     this.stderr = details.stderr;

@@ -16,6 +16,7 @@ import {
   Systemd,
   SystemdService,
   SystemdTimer,
+  SystemctlCommandError,
   Systemctl,
   UnitEnableError,
   UnitLogsReadError,
@@ -179,33 +180,45 @@ describe(`systemd-ts unit`, () => {
       scope: `user`,
     });
 
-    await systemctl.daemonReload();
-    await systemctl.enable(`backup-db.service`);
-    await systemctl.link(`/tmp/backup-db.service`);
-    await systemctl.start(`backup-db.service`);
-    await systemctl.show(`backup-db.service`, {
-      properties: [`Id`, `ActiveState`],
-    });
-    await systemctl.showProperties(`backup-db.service`, {
-      properties: [`Id`, `Description`],
-    });
-    await systemctl.showStatus(`backup-db.service`);
-    await systemctl.listTimers({
-      all: true,
-      patterns: [`backup-db.timer`],
-    });
-    await systemctl.isEnabled(`backup-db.service`);
-    await systemctl.isEnabled(`backup-db.service`, {
-      full: true,
-      quiet: true,
-    });
-    await systemctl.isActive(`backup-db.service`);
-    await systemctl.isFailed(`backup-db.service`, {
-      quiet: true,
-    });
-    await systemctl.status(`backup-db.service`, {
-      lines: 20,
-    });
+    await expect(systemctl.daemonReload()).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.enable(`backup-db.service`)).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.link(`/tmp/backup-db.service`)).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.start(`backup-db.service`)).resolves.toMatchObject({ ok: true });
+    await expect(
+      systemctl.show(`backup-db.service`, {
+        properties: [`Id`, `ActiveState`],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      systemctl.showProperties(`backup-db.service`, {
+        properties: [`Id`, `Description`],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.showStatus(`backup-db.service`)).resolves.toMatchObject({ ok: true });
+    await expect(
+      systemctl.listTimers({
+        all: true,
+        patterns: [`backup-db.timer`],
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.isEnabled(`backup-db.service`)).resolves.toMatchObject({ ok: true });
+    await expect(
+      systemctl.isEnabled(`backup-db.service`, {
+        full: true,
+        quiet: true,
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.isActive(`backup-db.service`)).resolves.toMatchObject({ ok: true });
+    await expect(
+      systemctl.isFailed(`backup-db.service`, {
+        quiet: true,
+      }),
+    ).resolves.toMatchObject({ ok: true });
+    await expect(
+      systemctl.status(`backup-db.service`, {
+        lines: 20,
+      }),
+    ).resolves.toMatchObject({ ok: true });
 
     expect(calls).toEqual([
       { command: `systemctl`, args: [`--user`, `daemon-reload`] },
@@ -294,20 +307,35 @@ describe(`systemd-ts unit`, () => {
         properties: [`Id`, `Description`],
       }),
     ).resolves.toEqual({
-      Id: `backup-db.service`,
-      Description: `Backup DB nightly`,
-      Empty: ``,
+      ok: true,
+      value: {
+        Id: `backup-db.service`,
+        Description: `Backup DB nightly`,
+        Empty: ``,
+      },
     });
     await expect(systemctl.showStatus(`backup-db.service`)).resolves.toEqual({
-      unit: `backup-db.service`,
-      activeState: `inactive`,
-      subState: `dead`,
-      result: `success`,
-      execMainStatus: 0,
+      ok: true,
+      value: {
+        unit: `backup-db.service`,
+        activeState: `inactive`,
+        subState: `dead`,
+        result: `success`,
+        execMainStatus: 0,
+      },
     });
-    await expect(systemctl.isEnabled(`backup-db.service`)).resolves.toBe(`enabled`);
-    await expect(systemctl.isActive(`backup-db.service`)).resolves.toBe(`active`);
-    await expect(systemctl.isFailed(`backup-db.service`)).resolves.toBe(`inactive`);
+    await expect(systemctl.isEnabled(`backup-db.service`)).resolves.toEqual({
+      ok: true,
+      value: `enabled`,
+    });
+    await expect(systemctl.isActive(`backup-db.service`)).resolves.toEqual({
+      ok: true,
+      value: `active`,
+    });
+    await expect(systemctl.isFailed(`backup-db.service`)).resolves.toEqual({
+      ok: true,
+      value: `inactive`,
+    });
 
     expect(calls).toHaveLength(5);
   });
@@ -341,16 +369,38 @@ describe(`systemd-ts unit`, () => {
         all: true,
         patterns: [`backup-db.timer`],
       }),
-    ).resolves.toEqual([
-      {
-        next: 1778463355991577,
-        left: 1778463355991577,
-        last: 0,
-        passed: 0,
-        unit: `backup-db.timer`,
-        activates: `backup-db.service`,
+    ).resolves.toEqual({
+      ok: true,
+      value: [
+        {
+          next: 1778463355991577,
+          left: 1778463355991577,
+          last: 0,
+          passed: 0,
+          unit: `backup-db.timer`,
+          activates: `backup-db.service`,
+        },
+      ],
+    });
+  });
+
+  test(`wraps systemctl execution failures in a structured Result error`, async () => {
+    const systemctl = new Systemctl({
+      executor: async () => {
+        throw Object.assign(new Error(`spawn systemctl ENOENT`), { code: `ENOENT` });
       },
-    ]);
+      scope: `user`,
+    });
+
+    await expect(systemctl.isActive(`missing.service`)).resolves.toMatchObject({
+      ok: false,
+      error: {
+        operation: `is-active`,
+        command: `systemctl`,
+        reason: `executor-failed`,
+        environmentReason: `missing-command`,
+      } satisfies Partial<SystemctlCommandError>,
+    });
   });
 
   test(`renders ExecStart from an executable helper`, () => {
