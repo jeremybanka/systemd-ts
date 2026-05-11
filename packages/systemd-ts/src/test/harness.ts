@@ -35,12 +35,13 @@ export function createGuestCommandExecutor(
 /**
  * Executor that reuses the warm guest shell for fast sandbox-backed tests.
  */
-export const guestCommandExecutor = createGuestCommandExecutor(runGuestCommand);
+export const guestCommandExecutor: CommandExecutor = createGuestCommandExecutor(runGuestCommand);
 
 /**
  * Executor that runs each guest command in a fresh isolated guest shell.
  */
-export const isolatedGuestCommandExecutor = createGuestCommandExecutor(runIsolatedGuestCommand);
+export const isolatedGuestCommandExecutor: CommandExecutor =
+  createGuestCommandExecutor(runIsolatedGuestCommand);
 
 /**
  * Creates a `Systemd` instance scoped to the active test sandbox and backed by
