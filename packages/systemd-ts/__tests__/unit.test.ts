@@ -182,9 +182,13 @@ describe(`systemd-ts unit`, () => {
 
     await expect(systemctl.daemonReload()).resolves.toMatchObject({ ok: true });
     await expect(systemctl.enable(`backup-db.service`)).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.disable(`backup-db.service`)).resolves.toMatchObject({ ok: true });
     await expect(systemctl.link(`/tmp/backup-db.service`)).resolves.toMatchObject({ ok: true });
     await expect(systemctl.start(`backup-db.service`)).resolves.toMatchObject({ ok: true });
     await expect(systemctl.stop(`backup-db.service`)).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.restart(`backup-db.service`)).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.resetFailed()).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.resetFailed([`backup-db.service`])).resolves.toMatchObject({ ok: true });
     await expect(
       systemctl.show(`backup-db.service`, {
         properties: [`Id`, `ActiveState`],
@@ -215,6 +219,8 @@ describe(`systemd-ts unit`, () => {
         quiet: true,
       }),
     ).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.isSystemRunning()).resolves.toMatchObject({ ok: true });
+    await expect(systemctl.isSystemRunning({ wait: true })).resolves.toMatchObject({ ok: true });
     await expect(
       systemctl.status(`backup-db.service`, {
         lines: 20,
@@ -224,9 +230,13 @@ describe(`systemd-ts unit`, () => {
     expect(calls).toEqual([
       { command: `systemctl`, args: [`--user`, `daemon-reload`] },
       { command: `systemctl`, args: [`--user`, `enable`, `backup-db.service`] },
+      { command: `systemctl`, args: [`--user`, `disable`, `backup-db.service`] },
       { command: `systemctl`, args: [`--user`, `link`, `/tmp/backup-db.service`] },
       { command: `systemctl`, args: [`--user`, `start`, `backup-db.service`] },
       { command: `systemctl`, args: [`--user`, `stop`, `backup-db.service`] },
+      { command: `systemctl`, args: [`--user`, `restart`, `backup-db.service`] },
+      { command: `systemctl`, args: [`--user`, `reset-failed`] },
+      { command: `systemctl`, args: [`--user`, `reset-failed`, `backup-db.service`] },
       {
         command: `systemctl`,
         args: [`--user`, `show`, `backup-db.service`, `--property=Id,ActiveState`],
@@ -266,6 +276,14 @@ describe(`systemd-ts unit`, () => {
       },
       {
         command: `systemctl`,
+        args: [`--user`, `is-system-running`],
+      },
+      {
+        command: `systemctl`,
+        args: [`--user`, `is-system-running`, `--wait`],
+      },
+      {
+        command: `systemctl`,
         args: [`--user`, `status`, `backup-db.service`, `--no-pager`, `--lines`, `20`],
       },
     ]);
@@ -297,6 +315,9 @@ describe(`systemd-ts unit`, () => {
         }
         if (subcommand === `is-failed`) {
           return { stdout: `inactive\n`, stderr: `` };
+        }
+        if (subcommand === `is-system-running`) {
+          return { stdout: `running\n`, stderr: `` };
         }
 
         return { stdout: ``, stderr: `` };
@@ -338,8 +359,12 @@ describe(`systemd-ts unit`, () => {
       ok: true,
       value: `inactive`,
     });
+    await expect(systemctl.isSystemRunning()).resolves.toEqual({
+      ok: true,
+      value: `running`,
+    });
 
-    expect(calls).toHaveLength(5);
+    expect(calls).toHaveLength(6);
   });
 
   test(`returns the observed typed list-timers json shape`, async () => {

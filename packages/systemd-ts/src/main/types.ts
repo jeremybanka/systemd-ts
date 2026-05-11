@@ -1051,6 +1051,16 @@ export type SystemctlEnablementState =
   | `not-found`
   | (string & {});
 
+export type SystemctlActiveState =
+  | `active`
+  | `reloading`
+  | `inactive`
+  | `failed`
+  | `activating`
+  | `deactivating`
+  | `maintenance`
+  | `refreshing`;
+
 export interface CommandOutput {
   readonly stderr: string;
   readonly stdout: string;
@@ -1101,6 +1111,20 @@ export interface SystemctlIsEnabledOptions {
 export interface SystemctlStateQueryOptions {
   readonly quiet?: boolean;
 }
+
+export interface SystemctlIsSystemRunningOptions {
+  readonly wait?: boolean;
+}
+
+export type SystemctlSystemRunningState =
+  | `initializing`
+  | `starting`
+  | `running`
+  | `degraded`
+  | `maintenance`
+  | `stopping`
+  | `offline`
+  | `unknown`;
 
 export interface NotifyOptions {
   readonly executor?: CommandExecutor;

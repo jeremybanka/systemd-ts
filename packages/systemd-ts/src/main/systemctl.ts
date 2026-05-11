@@ -2,16 +2,19 @@ import { defaultCommandExecutor, parseStartStatus } from "./internal.ts";
 import { SystemctlCommandError } from "./errors.ts";
 import type { Result } from "./internal.ts";
 import type {
+  SystemctlActiveState,
   CommandExecutor,
   CommandOutput,
   StartStatus,
   SystemctlEnablementState,
   SystemctlIsEnabledOptions,
+  SystemctlIsSystemRunningOptions,
   SystemctlListTimersOptions,
   SystemctlOptions,
   SystemctlStateQueryOptions,
   SystemctlShowOptions,
   SystemctlStatusOptions,
+  SystemctlSystemRunningState,
   SystemctlTimerListEntry,
 } from "./types.ts";
 
@@ -42,6 +45,11 @@ export class Systemctl {
   /** Enables a unit by filename. */
   public async enable(unit: string): Promise<Result<CommandOutput, SystemctlCommandError>> {
     return this.run(`enable`, unit);
+  }
+
+  /** Disables a unit by filename. */
+  public async disable(unit: string): Promise<Result<CommandOutput, SystemctlCommandError>> {
+    return this.run(`disable`, unit);
   }
 
   /** Links a unit file path into the targeted manager. */
@@ -80,12 +88,12 @@ export class Systemctl {
   public async isActive(
     unit: string,
     options: SystemctlStateQueryOptions = {},
-  ): Promise<Result<string, SystemctlCommandError>> {
+  ): Promise<Result<SystemctlActiveState, SystemctlCommandError>> {
     const output = await this.run(`is-active`, ...(options.quiet ? [`--quiet`] : []), unit);
     if (!output.ok) {
       return output;
     }
-    return ok(firstNonEmptyOutputLine(output.value));
+    return ok(firstNonEmptyOutputLine(output.value) as SystemctlActiveState);
   }
 
   /**
@@ -97,12 +105,28 @@ export class Systemctl {
   public async isFailed(
     unit: string,
     options: SystemctlStateQueryOptions = {},
-  ): Promise<Result<string, SystemctlCommandError>> {
+  ): Promise<Result<SystemctlActiveState, SystemctlCommandError>> {
     const output = await this.run(`is-failed`, ...(options.quiet ? [`--quiet`] : []), unit);
     if (!output.ok) {
       return output;
     }
-    return ok(firstNonEmptyOutputLine(output.value));
+    return ok(firstNonEmptyOutputLine(output.value) as SystemctlActiveState);
+  }
+
+  /**
+   * Queries the overall manager state reported by `systemctl is-system-running`.
+   *
+   * Source:
+   * - systemd v260.1, `systemctl(1)`
+   */
+  public async isSystemRunning(
+    options: SystemctlIsSystemRunningOptions = {},
+  ): Promise<Result<SystemctlSystemRunningState, SystemctlCommandError>> {
+    const output = await this.run(`is-system-running`, ...(options.wait ? [`--wait`] : []));
+    if (!output.ok) {
+      return output;
+    }
+    return ok(firstNonEmptyOutputLine(output.value) as SystemctlSystemRunningState);
   }
 
   /**
@@ -192,6 +216,21 @@ export class Systemctl {
   /** Stops a unit by filename. */
   public async stop(unit: string): Promise<Result<CommandOutput, SystemctlCommandError>> {
     return this.run(`stop`, unit);
+  }
+
+  /** Restarts a unit by filename. */
+  public async restart(unit: string): Promise<Result<CommandOutput, SystemctlCommandError>> {
+    return this.run(`restart`, unit);
+  }
+
+  /**
+   * Resets the failed state for matching units, or for all units when no
+   * patterns are provided.
+   */
+  public async resetFailed(
+    patterns: readonly string[] = [],
+  ): Promise<Result<CommandOutput, SystemctlCommandError>> {
+    return this.run(`reset-failed`, ...patterns);
   }
 
   /**
