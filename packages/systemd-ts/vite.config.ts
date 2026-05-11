@@ -10,6 +10,7 @@ const config: ReturnType<typeof defineConfig> = defineConfig({
       index: `src/main/index.ts`,
       test: `src/test/index.ts`,
     },
+    sourcemap: true,
     dts: {
       tsgo: {
         path: tsgoPath,
