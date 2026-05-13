@@ -33,6 +33,16 @@
       "matchPackageNames": ["jdx/mise"],
       "matchDatasources": ["github-releases"],
       "ignoreUnstable": true
+    },
+    {
+      "groupName": "vite-plus",
+      "matchDepNames": ["vite", "vitest", "vite-plus", "viteplus"],
+      "matchPackageNames": [
+        "vite-plus",
+        "viteplus",
+        "@voidzero-dev/vite-plus-core",
+        "@voidzero-dev/vite-plus-test"
+      ]
     }
   ]
 }
