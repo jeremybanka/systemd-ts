@@ -12,7 +12,7 @@ catalog:
   pin-dependencies-checker: 2.7.1
   tar: 7.5.15
   typescript: 6.0.3
-  vite: npm:@voidzero-dev/vite-plus-core@0.1.20
+  vite: npm:@voidzero-dev/vite-plus-core@0.1.21
   vitest: npm:@voidzero-dev/vite-plus-test@0.1.20
   vite-plus: 0.1.20
   takua: 0.1.1
