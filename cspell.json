@@ -137,6 +137,7 @@
     "SIGPENDING",
     "ssse",
     "strictatime",
+    "Subdeps",
     "subhierarchy",
     "subvolume",
     "SUIDSGID",
