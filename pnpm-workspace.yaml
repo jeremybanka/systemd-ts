@@ -7,7 +7,7 @@ catalogMode: prefer
 catalog:
   "@changesets/cli": 2.31.0
   "@types/node": 25.7.0
-  "@typescript/native-preview": 7.0.0-dev.20260512.1
+  "@typescript/native-preview": 7.0.0-dev.20260513.1
   cspell: 10.0.0
   pin-dependencies-checker: 2.7.1
   tar: 7.5.15
