@@ -3,6 +3,7 @@ packages:
   - tools/*
 
 catalogMode: prefer
+blockExoticSubdeps: true
 
 catalog:
   "@changesets/cli": 2.31.0
