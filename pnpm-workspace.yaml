@@ -8,7 +8,7 @@ blockExoticSubdeps: true
 catalog:
   "@changesets/cli": 2.31.0
   "@types/node": 25.8.0
-  "@typescript/native-preview": 7.0.0-dev.20260516.1
+  "@typescript/native-preview": 7.0.0-dev.20260517.1
   cspell: 10.0.0
   pin-dependencies-checker: 2.7.1
   tar: 7.5.15
