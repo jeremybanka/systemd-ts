@@ -4,11 +4,13 @@ packages:
 
 catalogMode: prefer
 blockExoticSubdeps: true
+minimumReleaseAge: 1440
+minimumReleaseAgeExclude: []
 
 catalog:
   "@changesets/cli": 2.31.0
-  "@types/node": 25.9.0
-  "@typescript/native-preview": 7.0.0-dev.20260518.1
+  "@types/node": 25.8.0
+  "@typescript/native-preview": 7.0.0-dev.20260517.1
   cspell: 10.0.0
   pin-dependencies-checker: 2.7.1
   tar: 7.5.15
