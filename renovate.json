@@ -46,8 +46,12 @@
       ]
     },
     {
-			"matchManagers": ["github-actions"],
-			"dependencyDashboardApproval": true
-		}
+      "matchManagers": ["github-actions"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "matchPackageNames": ["@typescript/*"],
+      "minimumReleaseAge": null
+    }
   ]
 }
