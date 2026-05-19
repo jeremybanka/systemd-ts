@@ -17,7 +17,8 @@
     "check:spelling": "cspell lint --config ./cspell.json",
     "dev": "vp run -r dev",
     "changeset": "changeset",
-    "release": "changeset publish"
+    "release": "changeset publish",
+    "update-workflows": "node ./scripts/update-workflows.node.ts"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",

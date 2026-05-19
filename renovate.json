@@ -44,6 +44,14 @@
         "@voidzero-dev/vite-plus-core",
         "@voidzero-dev/vite-plus-test"
       ]
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "dependencyDashboardApproval": true
+    },
+    {
+      "matchPackageNames": ["@typescript/*"],
+      "minimumReleaseAge": null
     }
   ]
 }

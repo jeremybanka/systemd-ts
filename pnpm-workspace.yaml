@@ -5,7 +5,8 @@ packages:
 catalogMode: prefer
 blockExoticSubdeps: true
 minimumReleaseAge: 1440
-minimumReleaseAgeExclude: []
+minimumReleaseAgeExclude:
+  - "@typescript/*"
 
 catalog:
   "@changesets/cli": 2.31.0
