@@ -158,7 +158,7 @@ async function main(): Promise<void> {
   }
 
   for (const [filePath, fileLines] of filesToWrite) {
-    await writeFile(filePath, `${fileLines.join(`\n`)}\n`);
+    await writeFile(filePath, fileLines.join(`\n`));
   }
 
   console.log(`Updated ${filesToWrite.size} file(s)`);
