@@ -22,8 +22,8 @@ catalogs:
       specifier: 2.7.1
       version: 2.7.1
     takua:
-      specifier: 0.2.0
-      version: 0.2.0
+      specifier: 0.2.1
+      version: 0.2.1
     tar:
       specifier: 7.5.15
       version: 7.5.15
@@ -77,7 +77,7 @@ importers:
         version: 7.0.0-dev.20260526.1
       takua:
         specifier: 'catalog:'
-        version: 0.2.0
+        version: 0.2.1
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -1594,8 +1594,8 @@ packages:
     resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
     engines: {node: '>=4'}
 
-  takua@0.2.0:
-    resolution: {integrity: sha512-EJWUvut+Cc3X39cj5xONNAxXA9cbKeKoLaEubvwCgwQqdVjb/u3GZKwZfdAo2nRdFlCGv4ZsM/qDTv4pOOE8ZA==}
+  takua@0.2.1:
+    resolution: {integrity: sha512-dQYQrvPHjLfxe0D/Uu+D7ToPLrndukby7JAp8KnJ+mLumskA1AQCP9hxquHWarCNcd7Io33tzzAy2X2VwQJMMw==}
 
   tar@7.5.15:
     resolution: {integrity: sha512-dzGK0boVlC4W5QFuQN1EFSl3bIDYsk7Tj40U6eIBnK2k/8ml7TZ5agbI5j5+qnoVcAA+rNtBml8SEiLxZpNqRQ==}
@@ -3037,9 +3037,7 @@ snapshots:
 
   strip-bom@3.0.0: {}
 
-  takua@0.2.0:
-    dependencies:
-      picocolors: 1.1.1
+  takua@0.2.1: {}
 
   tar@7.5.15:
     dependencies:
