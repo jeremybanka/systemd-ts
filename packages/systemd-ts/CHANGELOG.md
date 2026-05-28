@@ -1,5 +1,11 @@
 # systemd-ts
 
+## 260.2.0
+
+### Minor Changes
+
+- bf701f4: Reviewed systemd v260.2 compatibility against the cached v260.1 and v260.2 manpages. No directive updates are required for this release because the relevant changes are documentation clarifications only.
+
 ## 0.3.3
 
 ### Patch Changes
