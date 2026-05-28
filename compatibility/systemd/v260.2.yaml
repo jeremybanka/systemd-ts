@@ -1,0 +1,4 @@
+version: v260.2
+status: compatible
+reviewedAt: 2026-05-28
+notes: No directive updates required for this release. Reviewed cached v260.2 manpages against v260.1; relevant changes are documentation clarifications only.
