@@ -4,7 +4,7 @@ COLIMA_PROFILE = "systemd-ts"
 LIMA_HOME = "{{config_root}}/.colima/_lima"
 
 [tools]
-colima = "0.10.2"
+colima = "0.10.3"
 docker-cli = "29.5.3"
 lima = "2.1.2"
 node = "26.3.0"
