@@ -11,7 +11,7 @@ minimumReleaseAgeExclude:
 catalog:
   "@changesets/cli": 2.31.0
   "@types/node": 25.9.3
-  "@typescript/native-preview": 7.0.0-dev.20260612.1
+  "@typescript/native-preview": 7.0.0-dev.20260613.1
   cspell: 10.0.1
   pin-dependencies-checker: 2.7.1
   tar: 7.5.16
