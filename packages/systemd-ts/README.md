@@ -332,7 +332,7 @@ an isolated unit directory, and `sandboxSystemd()` when you want a `Systemd`
 instance already pointed at that sandbox.
 
 ```ts
-import { afterEach, beforeAll, beforeEach, test } from "vite-plus/test";
+import { afterEach, beforeAll, beforeEach, test } from "vitest";
 
 import { SystemdService } from "systemd-ts";
 import {
