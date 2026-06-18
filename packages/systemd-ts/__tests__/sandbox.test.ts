@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { Logger, type Chronicle } from "takua";
-import { afterEach, beforeAll, beforeEach, describe, expect, test } from "vite-plus/test";
+import { afterEach, beforeAll, beforeEach, describe, expect, test } from "vitest";
 
 import {
   Executable,
