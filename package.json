@@ -18,7 +18,8 @@
     "dev": "vp run -r dev",
     "changeset": "changeset",
     "release": "changeset publish",
-    "update-workflows": "node ./scripts/update-workflows.node.ts"
+    "update-workflows": "node ./scripts/update-workflows.node.ts",
+    "prepare": "vp config"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
