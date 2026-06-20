@@ -1,5 +1,11 @@
 # systemd-ts
 
+## 261.0.0
+
+### Major Changes
+
+- 79aaa38: Add systemd v261 compatibility typings for new unit conditions and resource-control directives.
+
 ## 260.2.0
 
 ### Minor Changes
