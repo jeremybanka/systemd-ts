@@ -48,12 +48,13 @@ export type ServiceRestartDirectiveValue =
 export type ServiceRestartModeDirectiveValue = "normal" | "direct" | "debug";
 export type NotifyAccessDirectiveValue = "none" | "main" | "exec" | "all";
 export type OOMPolicyDirectiveValue = "continue" | "stop" | "kill";
-export type FileDescriptorStorePreserveDirectiveValue = boolean | "restart";
+export type FileDescriptorStorePreserveDirectiveValue = boolean | "restart" | "on-success";
 export type TimeoutFailureModeDirectiveValue = "terminate" | "abort" | "kill";
 export type KeyringModeDirectiveValue = "inherit" | "private" | "shared";
 export type IOSchedulingClassDirectiveValue = "realtime" | "best-effort" | "idle";
 export type MountPropagationDirectiveValue = "shared" | "slave" | "private";
 export type DevicePolicyDirectiveValue = "auto" | "closed" | "strict";
+export type CPUSetPartitionDirectiveValue = "member" | "root" | "isolated";
 export type CPUSchedulingPolicyDirectiveValue = "other" | "batch" | "idle" | "fifo" | "rr" | "ext";
 export type SyslogFacilityDirectiveValue =
   | "kern"
@@ -96,6 +97,7 @@ export type ProcessResourceLimitDirectiveValue =
   | (string & {});
 export type ManagedOOMDirectiveValue = "auto" | "kill";
 export type ManagedOOMPreferenceDirectiveValue = "none" | "avoid" | "omit";
+export type PressureWatchDirectiveValue = boolean | "auto" | "skip";
 export type StandardInputDirectiveValue =
   | "null"
   | "tty"
@@ -169,6 +171,8 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly AssertFileNotEmpty?: string | readonly string[];
   /** Assertion form of `ConditionFirstBoot=`. This condition may be used to conditionalize units on whether the system is booting up for the first time. This roughly means that /etc/ was unpopulated when the system started booting (for details, see "First Boot Semantics" in machine-id(5)). First Boot is considered finished (this condition will evaluate as false) after the manager has finished the startup phase. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly AssertFirstBoot?: boolean | readonly boolean[];
+  /** Assertion form of `ConditionFraction=`. Enables a unit on a stable pseudo-random fraction of machines, optionally scoped by a tag. Source: systemd v261, `systemd.unit(5)`. */
+  readonly AssertFraction?: string | readonly string[];
   /** Assertion form of `ConditionGroup=`. Similar to `ConditionUser=`, but verifies that the service manager's real or effective group, or any of its auxiliary groups, match the specified group or GID. This setting does not support the special value @system. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly AssertGroup?: string | readonly string[];
   /** Assertion form of `ConditionHost=`. May be used to match against the hostname, machine ID, boot ID or product UUID of the host. This either takes a hostname string (optionally with shell style globs) which is tested against the locally set hostname as returned by gethostname2, or a 128bit ID or UUID, formatted as string. The latter is compared against machine ID, boot ID and the firmware product UUID if there is any. See machine-id(5) for details about the machine ID. The test may be negated by prepending an exclamation mark. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
@@ -181,6 +185,8 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly AssertKernelModuleLoaded?: string | readonly string[];
   /** Assertion form of `ConditionKernelVersion=`. May be used to check whether the kernel version (as reported by uname -r) matches a certain expression, or if prefixed with the exclamation mark, does not match. The argument must be a list of (potentially quoted) expressions. Each expression starts with one of = or != for string comparisons, <, <=, ==, <>, >=, > for version comparisons, or $=, !$= for a shell-style glob match. If no operator is specified, $= is implied. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly AssertKernelVersion?: string | readonly string[];
+  /** Assertion form of `ConditionMachineTag=`. Matches machine tags configured in `machine-info(5)`. Source: systemd v261, `systemd.unit(5)`. */
+  readonly AssertMachineTag?: string | readonly string[];
   /** Assertion form of `ConditionMemory=`. Verify that the specified amount of system memory is available to the current system. Takes a memory size in bytes as argument, optionally prefixed with a comparison operator <, <=, = (or ==), != (or <>), >=, >. On bare-metal systems compares the amount of physical memory in the system with the specified size, adhering to the specified comparison operator. In containers compares the amount of memory assigned to the container instead. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly AssertMemory?: number | string | readonly (number | string)[];
   /** Assertion form of `ConditionMemoryPressure=`. Verify that the overall system (memory, CPU or IO) pressure is below or equal to a threshold. This setting takes a threshold value as argument. It can be specified as a simple percentage value, suffixed with %, in which case the pressure will be measured as an average over the last five minutes before the attempt to start the unit is performed. Alternatively, the average timespan can also be specified using / as a separator, for example: 10%/1min. The supported timespans match what the kernel provides, and are limited to 10sec, 1min and 5min. The full PSI will be checked first, and if not found some will be checked. For more details, see the documentation on PSI (Pressure Stall Information) . Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
@@ -247,6 +253,8 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly ConditionFirmware?: string | readonly string[];
   /** This condition may be used to conditionalize units on whether the system is booting up for the first time. This roughly means that /etc/ was unpopulated when the system started booting (for details, see "First Boot Semantics" in machine-id(5)). First Boot is considered finished (this condition will evaluate as false) after the manager has finished the startup phase. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly ConditionFirstBoot?: boolean | readonly boolean[];
+  /** Enables a unit on a stable pseudo-random fraction of machines, optionally scoped by a tag. Source: systemd v261, `systemd.unit(5)`. */
+  readonly ConditionFraction?: string | readonly string[];
   /** Similar to `ConditionUser=`, but verifies that the service manager's real or effective group, or any of its auxiliary groups, match the specified group or GID. This setting does not support the special value @system. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly ConditionGroup?: string | readonly string[];
   /** May be used to match against the hostname, machine ID, boot ID or product UUID of the host. This either takes a hostname string (optionally with shell style globs) which is tested against the locally set hostname as returned by gethostname2, or a 128bit ID or UUID, formatted as string. The latter is compared against machine ID, boot ID and the firmware product UUID if there is any. See machine-id(5) for details about the machine ID. The test may be negated by prepending an exclamation mark. Source: systemd v260.1, `systemd.unit(5)`. */
@@ -259,6 +267,8 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly ConditionKernelModuleLoaded?: string | readonly string[];
   /** May be used to check whether the kernel version (as reported by uname -r) matches a certain expression, or if prefixed with the exclamation mark, does not match. The argument must be a list of (potentially quoted) expressions. Each expression starts with one of = or != for string comparisons, <, <=, ==, <>, >=, > for version comparisons, or $=, !$= for a shell-style glob match. If no operator is specified, $= is implied. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly ConditionKernelVersion?: string | readonly string[];
+  /** Matches machine tags configured in `machine-info(5)`. Source: systemd v261, `systemd.unit(5)`. */
+  readonly ConditionMachineTag?: string | readonly string[];
   /** Verify that the specified amount of system memory is available to the current system. Takes a memory size in bytes as argument, optionally prefixed with a comparison operator <, <=, = (or ==), != (or <>), >=, >. On bare-metal systems compares the amount of physical memory in the system with the specified size, adhering to the specified comparison operator. In containers compares the amount of memory assigned to the container instead. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly ConditionMemory?: number | string | readonly (number | string)[];
   /** Verify that the overall system (memory, CPU or IO) pressure is below or equal to a threshold. This setting takes a threshold value as argument. It can be specified as a simple percentage value, suffixed with %, in which case the pressure will be measured as an average over the last five minutes before the attempt to start the unit is performed. Alternatively, the average timespan can also be specified using / as a separator, for example: 10%/1min. The supported timespans match what the kernel provides, and are limited to 10sec, 1min and 5min. The full PSI will be checked first, and if not found some will be checked. For more details, see the documentation on PSI (Pressure Stall Information) . Source: systemd v260.1, `systemd.unit(5)`. */
@@ -476,12 +486,18 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly CPUQuota?: number | string;
   /** This setting controls the cpu controller in the unified hierarchy. Source: systemd v260.1, `systemd.resource-control(5)`. */
   readonly CPUQuotaPeriodSec?: number | string;
+  /** Sets the cpuset partition type for executed processes. Source: systemd v261, `systemd.resource-control(5)`. */
+  readonly CPUSetPartition?: CPUSetPartitionDirectiveValue;
   /** Sets the CPU scheduling policy for executed processes. Takes one of other, batch, idle, fifo, rr or ext. See sched_setscheduler(2) for details. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly CPUSchedulingPolicy?: CPUSchedulingPolicyDirectiveValue;
   /** Sets the CPU scheduling priority for executed processes. The available priority range depends on the selected CPU scheduling policy (see above). For real-time scheduling policies an integer between 1 (lowest priority) and 99 (highest priority) can be used. In case of CPU resource contention, smaller values mean less CPU time is made available to the service, larger values mean more. See sched_setscheduler(2) for details. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly CPUSchedulingPriority?: number;
   /** If true, elevated CPU scheduling priorities and policies will be reset when the executed processes call fork2, and can hence not leak into child processes. See sched_setscheduler(2) for details. Defaults to false. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly CPUSchedulingResetOnFork?: boolean;
+  /** Sets the CPU pressure threshold time for `CPUPressureWatch=`. Source: systemd v261, `systemd.resource-control(5)`. */
+  readonly CPUPressureThresholdSec?: number | string;
+  /** Supports `auto` and `skip` in addition to booleans. Controls whether systemd exposes CPU pressure monitoring information to the service environment. Source: systemd v261, `systemd.resource-control(5)`. */
+  readonly CPUPressureWatch?: PressureWatchDirectiveValue;
   /** These settings control the cpu controller in the unified hierarchy. Source: systemd v260.1, `systemd.resource-control(5)`. */
   readonly CPUWeight?: number | string;
   /** Relative cache directories to create for the service under `/var/cache`. Source: systemd v260.1, `systemd.exec(5)`. */
@@ -574,6 +590,10 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly IOSchedulingPriority?: number;
   /** These settings control the io controller in the unified hierarchy. Source: systemd v260.1, `systemd.resource-control(5)`. */
   readonly IOWeight?: number | string;
+  /** Sets the IO pressure threshold time for `IOPressureWatch=`. Source: systemd v261, `systemd.resource-control(5)`. */
+  readonly IOPressureThresholdSec?: number | string;
+  /** Supports `auto` and `skip` in addition to booleans. Controls whether systemd exposes IO pressure monitoring information to the service environment. Source: systemd v261, `systemd.resource-control(5)`. */
+  readonly IOPressureWatch?: PressureWatchDirectiveValue;
   /** See systemd.service(5) for IOWriteBandwidthMax=. Source: systemd v260.1, `systemd.service(5)`. */
   readonly IOWriteBandwidthMax?: string | readonly string[];
   /** See systemd.service(5) for IOWriteIOPSMax=. Source: systemd v260.1, `systemd.service(5)`. */
@@ -687,7 +707,7 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   /** Sets the memory pressure threshold time for memory pressure monitor as configured via MemoryPressureWatch=. Specifies the maximum allocation latency before a memory pressure event is signalled to the service, per 2s window. If not specified, defaults to the DefaultMemoryPressureThresholdSec= setting in systemd-system.conf(5) (which in turn defaults to 200ms). The specified value expects a time unit such as ms or μs, see systemd.time(7) for details on the permitted syntax. Source: systemd v260.1, `systemd.resource-control(5)`. */
   readonly MemoryPressureThresholdSec?: number | string;
   /** Supports `auto` and `skip` in addition to booleans. Controls whether systemd exposes memory pressure monitoring information to the service environment. Source: systemd v260.1, `systemd.resource-control(5)`. */
-  readonly MemoryPressureWatch?: boolean | "auto" | "skip";
+  readonly MemoryPressureWatch?: PressureWatchDirectiveValue;
   /** Hard swap usage limit for the unit cgroup. Source: systemd v260.1, `systemd.resource-control(5)`. */
   readonly MemorySwapMax?: number | string;
   /** Transparent Hugepages (THPs) is a Linux kernel feature that manages memory using larger pages (2MB on x86, compared to the default 4KB). The main goal is to improve memory management efficiency and system performance, especially for memory-intensive applications. However, it can cause drawbacks in some scenarios, such as memory regression and latency spikes. THP policy is governed for the entire system via /sys/kernel/mm/transparent_hugepage/enabled. However, it can be overridden for individual workloads via prctl(2). This directive may be used to disable THPs at process invocation time to stop providing THPs for workloads where the drawbacks outweigh the advantages. When MemoryTHP= is set to inherit or not set at all, systemd inherits THP settings from the process that starts it and no prctl(2) PR_SET_THP_DISABLE call is made. When set to disable, MemoryTHP= disables THPs completely for the process, irrespective of global THP controls. When set to madvise, MemoryTHP= disables THPs for the process except when specifically requested via madvise2 by the process with MADV_HUGEPAGE or MADV_COLLAPSE. When set to system, MemoryTHP= resets the THP policy to system wide policy. This can be used when the process that starts systemd has already disabled THPs via PR_SET_THP_DISABLE, and we want to restore the system default THP setting at process invocation time. For details, see Transparent Hugepage Support in the kernel documentation. Source: systemd v260.1, `systemd.exec(5)`. */
@@ -724,6 +744,8 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly NotifyAccess?: NotifyAccessDirectiveValue;
   /** Configure the out-of-memory (OOM) killing policy for the kernel and the userspace OOM killer systemd-oomd.service8. On Linux, when memory becomes scarce to the point that the kernel has trouble allocating memory for itself, it might decide to kill a running process in order to free up memory and reduce memory pressure. Note that systemd-oomd.service is a more flexible solution that aims to prevent out-of-memory situations for the userspace too, not just the kernel, by attempting to terminate services earlier, before the kernel would have to act. Source: systemd v260.1, `systemd.service(5)`. */
   readonly OOMPolicy?: OOMPolicyDirectiveValue;
+  /** Names oomd rulesets to evaluate against this unit's cgroup. Source: systemd v261, `systemd.resource-control(5)`. */
+  readonly OOMRules?: string | readonly string[];
   /** Sets the adjustment value for the Linux kernel's Out-Of-Memory (OOM) killer score for executed processes. Takes an integer between -1000 (to disable OOM killing of processes of this unit) and 1000 (to make killing of processes of this unit under memory pressure very likely). See The /proc Filesystem for details. If not specified, defaults to the OOM score adjustment level of the service manager itself, which is normally at 0. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly OOMScoreAdjust?: number;
   /** Takes an argument of the form path:fd-name:options, where: path is a path to a file or an AF_UNIX socket in the file system; fd-name is a name that will be associated with the file descriptor; the name may contain any ASCII character, but must exclude control characters and ":", and must be at most 255 characters in length; it is optional and, if not provided, defaults to the file name; options is a comma-separated list of access options; possible values are read-only, append, truncate, graceful; if not specified, files will be opened in rw mode; if graceful is specified, errors during file/socket opening are ignored. Specifying the same option several times is treated as an error. The file or socket is opened by the service manager and the file descriptor is passed to the service. If the path is a socket, we call connect() on it. See sd_listen_fds3 for more details on how to retrieve these file descriptors. Source: systemd v260.1, `systemd.service(5)`. */

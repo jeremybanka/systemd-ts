@@ -1,0 +1,4 @@
+version: v261
+status: compatible
+reviewedAt: 2026-06-20
+notes: Added directive typings for systemd v261 unit conditions, resource-control settings, and FileDescriptorStorePreserve=on-success after reviewing cached v261 manpages against v260.2.
