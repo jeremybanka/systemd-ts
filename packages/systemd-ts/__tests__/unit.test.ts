@@ -58,6 +58,43 @@ describe(`systemd-ts unit`, () => {
     expect(rendered.value).toContain(`ExecStart=/usr/bin/env node /srv/app/backup.mjs`);
   });
 
+  test(`renders systemd v261 directives`, () => {
+    const service = new SystemdService({
+      name: `rollout-worker`,
+      unit: {
+        ConditionFraction: `rollout 25%`,
+        AssertMachineTag: [`edge`, `!canary`],
+      },
+      service: {
+        ExecStart: `/usr/bin/true`,
+        CPUSetPartition: `root`,
+        CPUPressureWatch: `auto`,
+        CPUPressureThresholdSec: `250ms`,
+        FileDescriptorStorePreserve: `on-success`,
+        IOPressureWatch: true,
+        IOPressureThresholdSec: `300ms`,
+        OOMRules: [`latency-sensitive`, `bulk-work`],
+      },
+    });
+
+    const rendered = service.render();
+    expect(rendered.ok).toBe(true);
+    if (!rendered.ok) {
+      throw rendered.error;
+    }
+    expect(rendered.value).toContain(`ConditionFraction=rollout 25%`);
+    expect(rendered.value).toContain(`AssertMachineTag=edge`);
+    expect(rendered.value).toContain(`AssertMachineTag=!canary`);
+    expect(rendered.value).toContain(`CPUSetPartition=root`);
+    expect(rendered.value).toContain(`CPUPressureWatch=auto`);
+    expect(rendered.value).toContain(`CPUPressureThresholdSec=250ms`);
+    expect(rendered.value).toContain(`FileDescriptorStorePreserve=on-success`);
+    expect(rendered.value).toContain(`IOPressureWatch=true`);
+    expect(rendered.value).toContain(`IOPressureThresholdSec=300ms`);
+    expect(rendered.value).toContain(`OOMRules=latency-sensitive`);
+    expect(rendered.value).toContain(`OOMRules=bulk-work`);
+  });
+
   test(`renders a timer unit`, () => {
     const timer = new SystemdTimer({
       name: `backup-db`,
