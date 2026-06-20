@@ -6,7 +6,7 @@ LIMA_HOME = "{{config_root}}/.colima/_lima"
 [tools]
 colima = "0.10.3"
 docker-cli = "29.6.0"
-lima = "2.1.2"
+lima = "2.1.3"
 ni = "30.1.0"
 node = "26.3.1"
 pnpm = "11.8.0"
