@@ -14,7 +14,7 @@ catalog:
   "@typescript/native-preview": 7.0.0-dev.20260624.1
   cspell: 10.0.1
   pin-dependencies-checker: 2.7.1
-  tar: 7.5.16
+  tar: 7.5.17
   typescript: 6.0.3
   vite: npm:@voidzero-dev/vite-plus-core@latest
   vitest: 4.1.9
