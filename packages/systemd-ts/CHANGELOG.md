@@ -1,5 +1,11 @@
 # systemd-ts
 
+## 261.1.0
+
+### Minor Changes
+
+- b8ee61f: Reviewed systemd v261.1 compatibility against the cached v261 and v261.1 manpages. No directive updates are required for this release because the man XML directories are identical.
+
 ## 261.0.0
 
 ### Major Changes
