@@ -1,0 +1,4 @@
+version: v261.1
+status: compatible
+reviewedAt: 2026-06-28
+notes: No directive updates required for this release. Reviewed cached v261.1 manpages against v261; the man XML directories are identical.
