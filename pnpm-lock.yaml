@@ -22,8 +22,8 @@ catalogs:
       specifier: 2.7.1
       version: 2.7.1
     takua:
-      specifier: 0.2.1
-      version: 0.2.1
+      specifier: 0.2.2
+      version: 0.2.2
     tar:
       specifier: 7.5.19
       version: 7.5.19
@@ -77,7 +77,7 @@ importers:
         version: 7.0.0-dev.20260707.2
       takua:
         specifier: 'catalog:'
-        version: 0.2.1
+        version: 0.2.2
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
@@ -1695,8 +1695,8 @@ packages:
     resolution: {integrity: sha512-vavAMRXOgBVNF6nyEEmL3DBK19iRpDcoIwW+swQ+CbGiu7lju6t+JklA1MHweoWtadgt4ISVUsXLyDq34ddcwA==}
     engines: {node: '>=4'}
 
-  takua@0.2.1:
-    resolution: {integrity: sha512-dQYQrvPHjLfxe0D/Uu+D7ToPLrndukby7JAp8KnJ+mLumskA1AQCP9hxquHWarCNcd7Io33tzzAy2X2VwQJMMw==}
+  takua@0.2.2:
+    resolution: {integrity: sha512-yjNZ/dE7vzzecyyMyzpV9IF74cirv8H1ci6U+1fICICOtsb/5Cstz86Hu4GK8IgO9HTlA6rgjg7d/ljq7RDNWQ==}
 
   tar@7.5.19:
     resolution: {integrity: sha512-4LeEWl96twnS2Q7Bz4MGqgazLqO+hJN63GZxXoIqh1T3VweYD997gbU1ItNsQafqqXTXd5WFyFdReLtwvRBNiw==}
@@ -3299,7 +3299,7 @@ snapshots:
 
   strip-bom@3.0.0: {}
 
-  takua@0.2.1: {}
+  takua@0.2.2: {}
 
   tar@7.5.19:
     dependencies:
