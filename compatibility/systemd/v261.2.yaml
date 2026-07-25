@@ -1,0 +1,4 @@
+version: v261.2
+status: compatible
+reviewedAt: 2026-07-25
+notes: No directive updates required for this release. Reviewed cached v261.2 manpages against v261.1; the only typed unit-file surface change corrects the documented ExitType= constraint without changing directive syntax.
