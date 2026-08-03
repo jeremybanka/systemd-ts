@@ -1,5 +1,11 @@
 # systemd-ts
 
+## 261.2.1
+
+### Patch Changes
+
+- 698021b: License the package under LGPL-2.1-or-later, matching the systemd manuals from which its directive documentation is derived.
+
 ## 261.2.0
 
 ### Minor Changes

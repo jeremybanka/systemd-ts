@@ -1,6 +1,6 @@
 {
   "name": "systemd-ts",
-  "version": "261.2.0",
+  "version": "261.2.1",
   "description": "TypeScript builders and helpers for systemd services and timers.",
   "license": "LGPL-2.1-or-later",
   "repository": {
