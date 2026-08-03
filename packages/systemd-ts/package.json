@@ -2,7 +2,7 @@
   "name": "systemd-ts",
   "version": "261.2.0",
   "description": "TypeScript builders and helpers for systemd services and timers.",
-  "license": "MIT",
+  "license": "LGPL-2.1-or-later",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jeremybanka/systemd-ts.git",
