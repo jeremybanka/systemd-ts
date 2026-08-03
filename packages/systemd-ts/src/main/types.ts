@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
+// Directive documentation is adapted from systemd manuals and modified for TypeScript in 2026.
+
 import type { Executable } from "./executable.ts";
 import type { SystemdService } from "./systemd-service.ts";
 import type { SystemdTimer } from "./systemd-timer.ts";
