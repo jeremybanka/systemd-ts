@@ -27,6 +27,7 @@
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",
     "cspell": "catalog:",
+    "oxfmt": "catalog:",
     "pin-dependencies-checker": "catalog:",
     "tar": "catalog:",
     "typescript": "catalog:",
