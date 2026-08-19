@@ -18,7 +18,7 @@ catalog:
   tar: 7.5.22
   typescript: 7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@latest
-  vitest: 4.1.10
+  vitest: 4.1.11
   vite-plus: 0.2.9
   takua: 0.2.2
 
