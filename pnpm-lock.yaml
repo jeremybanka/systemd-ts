@@ -25,8 +25,8 @@ catalogs:
       specifier: 2.7.1
       version: 2.7.1
     takua:
-      specifier: 0.2.2
-      version: 0.2.2
+      specifier: 0.2.3
+      version: 0.2.3
     tar:
       specifier: 7.5.22
       version: 7.5.22
@@ -83,7 +83,7 @@ importers:
         version: 7.0.0-dev.20260707.2
       takua:
         specifier: 'catalog:'
-        version: 0.2.2
+        version: 0.2.3
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -1855,8 +1855,8 @@ packages:
   std-env@4.1.0:
     resolution: {integrity: sha512-Rq7ybcX2RuC55r9oaPVEW7/xu3tj8u4GeBYHBWCychFtzMIr86A7e3PPEBPT37sHStKX3+TiX/Fr/ACmJLVlLQ==}
 
-  takua@0.2.2:
-    resolution: {integrity: sha512-yjNZ/dE7vzzecyyMyzpV9IF74cirv8H1ci6U+1fICICOtsb/5Cstz86Hu4GK8IgO9HTlA6rgjg7d/ljq7RDNWQ==}
+  takua@0.2.3:
+    resolution: {integrity: sha512-X/UsrLMSttBXrgAthtDZW9iuorphm7dgm5h6AskgpONCtpwd59zo8dN3sPHzi9LkEZ2mfxTVWMqAZpsoeEIt1Q==}
 
   tar@7.5.22:
     resolution: {integrity: sha512-MFO/QzvtAOmJbkhOaCTvbGcFN9L9b+JunIsDwaKljSOdcLMea3NJ1k9Usz/rjdfSXTq4dfzfeS7W4p4YOAAHeA==}
@@ -3405,7 +3405,7 @@ snapshots:
 
   std-env@4.1.0: {}
 
-  takua@0.2.2: {}
+  takua@0.2.3: {}
 
   tar@7.5.22:
     dependencies:
