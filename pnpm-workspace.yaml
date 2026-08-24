@@ -20,7 +20,7 @@ catalog:
   vite: npm:@voidzero-dev/vite-plus-core@latest
   vitest: 4.1.11
   vite-plus: 0.2.9
-  takua: 0.2.2
+  takua: 0.2.3
 
 overrides:
   vite: "catalog:"
