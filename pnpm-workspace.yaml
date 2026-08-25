@@ -19,7 +19,7 @@ catalog:
   typescript: 7.0.2
   vite: npm:@voidzero-dev/vite-plus-core@latest
   vitest: 4.1.11
-  vite-plus: 0.2.9
+  vite-plus: 0.3.0
   takua: 0.2.3
 
 overrides:
