@@ -1,5 +1,11 @@
 # systemd-ts
 
+## 261.3.0
+
+### Minor Changes
+
+- 2d0961f: Confirm compatibility with systemd v261.3 after reviewing the cached v261.2 and v261.3 manpages. No directive syntax or type updates are required. Refresh API documentation for exit actions, `RestrictSUIDSGID=`, `UnsetEnvironment=`, and standard I/O paths to reflect upstream behavioral clarifications.
+
 ## 261.2.1
 
 ### Patch Changes
