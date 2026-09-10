@@ -1,0 +1,4 @@
+version: v261.3
+status: compatible
+reviewedAt: 2026-09-10
+notes: No directive syntax or type updates required. Reviewed cached v261.3 manpages against v261.2; service, timer, resource-control, and kill manpages are unchanged. Updated API documentation for exit actions, RestrictSUIDSGID=, UnsetEnvironment=, and standard I/O paths. The systemctl --marked and sd_notify STOPPING=1 clarifications do not affect the existing helpers.

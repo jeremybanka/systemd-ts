@@ -96,6 +96,7 @@
     "NUMA",
     "oneshot",
     "oomd",
+    "openat",
     "osxsave",
     "overlayfs",
     "oxfmt",
