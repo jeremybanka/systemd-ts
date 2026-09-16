@@ -10,7 +10,7 @@ minimumReleaseAgeExclude:
 
 catalog:
   "@changesets/cli": 3.0.2
-  "@types/node": 25.9.6
+  "@types/node": 26.6.1
   "@typescript/native-preview": 7.0.0-dev.20260707.2
   cspell: 10.3.2
   oxfmt: 0.68.0
