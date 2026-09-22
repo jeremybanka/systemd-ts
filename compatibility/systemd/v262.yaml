@@ -1,0 +1,15 @@
+version: v262
+status: compatible
+reviewedAt: 2026-09-22
+notes: >-
+  Reviewed cached v262 manpages and NEWS against v261.3. Added service typings for
+  RestartRandomizedDelaySec= and LUOSession=. Existing string types accept the new
+  NUMAPolicy= and SecureBits= values, architecture-qualified CPU features, and
+  parameterized machine tags; refreshed their documentation and path-existence
+  semantics. Documented the notify-reload requirement to catch or block ReloadSignal=
+  before READY=1. Timer, resource-control, kill, sd_notify, systemd-notify, and
+  journalctl manpages are unchanged. The systemctl transaction and kexec changes
+  require no changes to existing wrappers. Start-limit intervals now count suspended
+  time; UnsetEnvironment= expansion behavior was already documented for v261.3.
+  Compatibility is based on the upstream source review and local static and unit
+  checks; live integration tests could not run because no Docker daemon is available.

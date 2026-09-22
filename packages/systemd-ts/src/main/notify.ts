@@ -21,6 +21,10 @@ export const notify = {
    * Use this when a `Type=notify` service has completed its startup work and is
    * ready to be considered fully started. If `options.status` is provided, it is
    * sent as an additional `STATUS=...` field.
+   *
+   * With `Type=notify-reload`, the main process must catch or block its
+   * `ReloadSignal=` (SIGHUP by default) before sending readiness. Since systemd
+   * v262, startup fails if it does neither. Source: systemd v262, `systemd.service(5)`.
    */
   async ready(options: NotifyOptions = {}): Promise<Result<void, NotifySendError>> {
     try {
