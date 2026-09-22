@@ -95,6 +95,80 @@ describe(`systemd-ts unit`, () => {
     expect(rendered.value).toContain(`OOMRules=bulk-work`);
   });
 
+  test.each([`preferred-many`, `weighted-interleave`])(
+    `renders systemd v262 directives with NUMAPolicy=%s`,
+    (numaPolicy) => {
+      const service = new SystemdService({
+        name: `live-update-worker`,
+        unit: {
+          ConditionCPUFeature: `arm64.bti`,
+          AssertCPUFeature: `arm64.mte`,
+          ConditionMachineTag: `role=worker`,
+          AssertMachineTag: `region=*`,
+        },
+        service: {
+          ExecStart: `/usr/bin/true`,
+          Restart: `on-failure`,
+          RestartSec: `1s`,
+          RestartRandomizedDelaySec: `250ms`,
+          LUOSession: [`state cache`, ``, `worker`],
+          FileDescriptorStorePreserve: true,
+          NUMAPolicy: numaPolicy,
+          NUMAMask: `0-1`,
+          SecureBits: [
+            `no-cap-ambient-raise no-cap-ambient-raise-locked`,
+            `exec-restrict-file exec-restrict-file-locked`,
+            `exec-deny-interactive exec-deny-interactive-locked`,
+          ],
+        },
+      });
+
+      const rendered = service.render();
+      expect(rendered.ok).toBe(true);
+      if (!rendered.ok) {
+        throw rendered.error;
+      }
+      expect(rendered.value).toContain(`ConditionCPUFeature=arm64.bti`);
+      expect(rendered.value).toContain(`AssertCPUFeature=arm64.mte`);
+      expect(rendered.value).toContain(`ConditionMachineTag=role=worker`);
+      expect(rendered.value).toContain(`AssertMachineTag=region=*`);
+      expect(rendered.value).toContain(`RestartRandomizedDelaySec=250ms`);
+      expect(rendered.value).toContain(`LUOSession=state cache\nLUOSession=\nLUOSession=worker`);
+      expect(rendered.value).toContain(`FileDescriptorStorePreserve=true`);
+      expect(rendered.value).toContain(`NUMAPolicy=${numaPolicy}`);
+      expect(rendered.value).toContain(`NUMAMask=0-1`);
+      expect(rendered.value).toContain(
+        `SecureBits=no-cap-ambient-raise no-cap-ambient-raise-locked`,
+      );
+      expect(rendered.value).toContain(`SecureBits=exec-restrict-file exec-restrict-file-locked`);
+      expect(rendered.value).toContain(
+        `SecureBits=exec-deny-interactive exec-deny-interactive-locked`,
+      );
+    },
+  );
+
+  test.each([0, 2.5])(
+    `renders a numeric restart delay of %s seconds and an LUO session`,
+    (delay) => {
+      const service = new SystemdService({
+        name: `restart-worker`,
+        service: {
+          ExecStart: `/usr/bin/true`,
+          RestartRandomizedDelaySec: delay,
+          LUOSession: `state`,
+        },
+      });
+
+      const rendered = service.render();
+      expect(rendered.ok).toBe(true);
+      if (!rendered.ok) {
+        throw rendered.error;
+      }
+      expect(rendered.value).toContain(`RestartRandomizedDelaySec=${delay}`);
+      expect(rendered.value).toContain(`LUOSession=state`);
+    },
+  );
+
   test(`renders a timer unit`, () => {
     const timer = new SystemdTimer({
       name: `backup-db`,

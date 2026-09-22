@@ -138,10 +138,11 @@ export interface CustomDirectiveSection {
 /**
  * Generic unit-level directives shared by service and timer units.
  *
- * References in this file are grounded in cached upstream systemd v260.1 manpages.
+ * References in this file are grounded in cached upstream systemd manpages,
+ * reviewed through v262. Individual directives identify their documentation source.
  *
  * Sources:
- * - systemd v260.1, `systemd.unit(5)`
+ * - systemd v262, `systemd.unit(5)`
  */
 export interface SystemdUnitSection extends CustomDirectiveSection {
   /** Units that should be ordered before this unit starts. Source: systemd v260.1, `systemd.unit(5)`. */
@@ -152,7 +153,7 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly AssertACPower?: boolean | readonly boolean[];
   /** Assertion form of `ConditionArchitecture=`. Check whether the system is running on a specific architecture. Takes one of x86, x86-64, ppc, ppc-le, ppc64, ppc64-le, ia64, parisc, parisc64, s390, s390x, sparc, sparc64, mips, mips-le, mips64, mips64-le, alpha, arm, arm-be, arm64, arm64-be, sh, sh64, m68k, tilegx, cris, arc, arc-be, or native. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly AssertArchitecture?: string | readonly string[];
-  /** Assertion form of `ConditionCPUFeature=`. Verify that a given CPU feature is available via the CPUID instruction. This condition only does something on i386 and x86-64 processors. On other processors it is assumed that the CPU does not support the given feature. It checks the leaves 1, 7, 0x80000001, and 0x80000007. Valid values are: fpu, vme, de, pse, tsc, msr, pae, mce, cx8, apic, sep, mtrr, pge, mca, cmov, pat, pse36, clflush, mmx, fxsr, sse, sse2, ht, pni, pclmul, monitor, ssse3, fma3, cx16, sse4_1, sse4_2, movbe, popcnt, aes, xsave, osxsave, avx, f16c, rdrand, bmi1, avx2, bmi2, rdseed, adx, sha_ni, syscall, rdtscp, lm, lahf_lm, abm, constant_tsc. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
+  /** Assertion form of `ConditionCPUFeature=`. Checks CPU features via CPUID on i386 and x86-64, or ELF hardware capabilities on arm64. Accepts architecture-qualified names such as `arm64.bti`; a mismatched architecture prefix evaluates to false. On other architectures, features are assumed unsupported. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v262, `systemd.unit(5)`. */
   readonly AssertCPUFeature?: string | readonly string[];
   /** Assertion form of `ConditionCPUPressure=`. Verify that the overall system (memory, CPU or IO) pressure is below or equal to a threshold. This setting takes a threshold value as argument. It can be specified as a simple percentage value, suffixed with %, in which case the pressure will be measured as an average over the last five minutes before the attempt to start the unit is performed. Alternatively, the average timespan can also be specified using / as a separator, for example: 10%/1min. The supported timespans match what the kernel provides, and are limited to 10sec, 1min and 5min. The full PSI will be checked first, and if not found some will be checked. For more details, see the documentation on PSI (Pressure Stall Information) . Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly AssertCPUPressure?: string | readonly string[];
@@ -188,7 +189,7 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly AssertKernelModuleLoaded?: string | readonly string[];
   /** Assertion form of `ConditionKernelVersion=`. May be used to check whether the kernel version (as reported by uname -r) matches a certain expression, or if prefixed with the exclamation mark, does not match. The argument must be a list of (potentially quoted) expressions. Each expression starts with one of = or != for string comparisons, <, <=, ==, <>, >=, > for version comparisons, or $=, !$= for a shell-style glob match. If no operator is specified, $= is implied. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly AssertKernelVersion?: string | readonly string[];
-  /** Assertion form of `ConditionMachineTag=`. Matches machine tags configured in `machine-info(5)`. Source: systemd v261, `systemd.unit(5)`. */
+  /** Assertion form of `ConditionMachineTag=`. Matches machine tags using shell-style patterns, optionally negated with `!`. Parameterized tags include their value in the match: `role=web` matches exactly, `role=*` matches any value for that key, and `role` does not match `role=web`. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v262, `systemd.unit(5)`. */
   readonly AssertMachineTag?: string | readonly string[];
   /** Assertion form of `ConditionMemory=`. Verify that the specified amount of system memory is available to the current system. Takes a memory size in bytes as argument, optionally prefixed with a comparison operator <, <=, = (or ==), != (or <>), >=, >. On bare-metal systems compares the amount of physical memory in the system with the specified size, adhering to the specified comparison operator. In containers compares the amount of memory assigned to the container instead. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly AssertMemory?: number | string | readonly (number | string)[];
@@ -198,7 +199,7 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly AssertNeedsUpdate?: string | readonly string[];
   /** Assertion form of `ConditionOSRelease=`. Verify that a specific key=value pair is set in the host's os-release5. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly AssertOSRelease?: string | readonly string[];
-  /** Assertion form of `ConditionPathExists=`. Check for the existence of a file. If the specified absolute path name does not exist, the condition will fail. If the absolute path name passed to ConditionPathExists= is prefixed with an exclamation mark (!), the test is negated, and the unit is only started if the path does not exist. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
+  /** Assertion form of `ConditionPathExists=`. Checks for any file system object at an absolute path, including directories, device nodes, FIFOs, and sockets. Symbolic links are followed, so broken symbolic links do not count as existing. Prefix the path with `!` to require its absence. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v262, `systemd.unit(5)`. */
   readonly AssertPathExists?: string | readonly string[];
   /** Assertion form of `ConditionPathExistsGlob=`. Similar to `ConditionPathExists=`, but checks for the existence of at least one file or directory matching the specified globbing pattern. Unlike conditions, a mismatch fails the start job instead of skipping it. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly AssertPathExistsGlob?: string | readonly string[];
@@ -232,7 +233,7 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly ConditionACPower?: boolean | readonly boolean[];
   /** Check whether the system is running on a specific architecture. Takes one of x86, x86-64, ppc, ppc-le, ppc64, ppc64-le, ia64, parisc, parisc64, s390, s390x, sparc, sparc64, mips, mips-le, mips64, mips64-le, alpha, arm, arm-be, arm64, arm64-be, sh, sh64, m68k, tilegx, cris, arc, arc-be, or native. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly ConditionArchitecture?: string | readonly string[];
-  /** Verify that a given CPU feature is available via the CPUID instruction. This condition only does something on i386 and x86-64 processors. On other processors it is assumed that the CPU does not support the given feature. It checks the leaves 1, 7, 0x80000001, and 0x80000007. Valid values are: fpu, vme, de, pse, tsc, msr, pae, mce, cx8, apic, sep, mtrr, pge, mca, cmov, pat, pse36, clflush, mmx, fxsr, sse, sse2, ht, pni, pclmul, monitor, ssse3, fma3, cx16, sse4_1, sse4_2, movbe, popcnt, aes, xsave, osxsave, avx, f16c, rdrand, bmi1, avx2, bmi2, rdseed, adx, sha_ni, syscall, rdtscp, lm, lahf_lm, abm, constant_tsc. Source: systemd v260.1, `systemd.unit(5)`. */
+  /** Checks CPU features via CPUID on i386 and x86-64, or ELF hardware capabilities on arm64. Accepts architecture-qualified names such as `arm64.bti`; a mismatched architecture prefix evaluates to false. On other architectures, features are assumed unsupported. Source: systemd v262, `systemd.unit(5)`. */
   readonly ConditionCPUFeature?: string | readonly string[];
   /** Verify that the overall system (memory, CPU or IO) pressure is below or equal to a threshold. This setting takes a threshold value as argument. It can be specified as a simple percentage value, suffixed with %, in which case the pressure will be measured as an average over the last five minutes before the attempt to start the unit is performed. Alternatively, the average timespan can also be specified using / as a separator, for example: 10%/1min. The supported timespans match what the kernel provides, and are limited to 10sec, 1min and 5min. The full PSI will be checked first, and if not found some will be checked. For more details, see the documentation on PSI (Pressure Stall Information) . Source: systemd v260.1, `systemd.unit(5)`. */
   readonly ConditionCPUPressure?: string | readonly string[];
@@ -270,7 +271,7 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly ConditionKernelModuleLoaded?: string | readonly string[];
   /** May be used to check whether the kernel version (as reported by uname -r) matches a certain expression, or if prefixed with the exclamation mark, does not match. The argument must be a list of (potentially quoted) expressions. Each expression starts with one of = or != for string comparisons, <, <=, ==, <>, >=, > for version comparisons, or $=, !$= for a shell-style glob match. If no operator is specified, $= is implied. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly ConditionKernelVersion?: string | readonly string[];
-  /** Matches machine tags configured in `machine-info(5)`. Source: systemd v261, `systemd.unit(5)`. */
+  /** Matches machine tags from `machine-info(5)` using shell-style patterns, optionally negated with `!`. Parameterized tags include their value in the match: `role=web` matches exactly, `role=*` matches any value for that key, and `role` does not match `role=web`. Source: systemd v262, `systemd.unit(5)`. */
   readonly ConditionMachineTag?: string | readonly string[];
   /** Verify that the specified amount of system memory is available to the current system. Takes a memory size in bytes as argument, optionally prefixed with a comparison operator <, <=, = (or ==), != (or <>), >=, >. On bare-metal systems compares the amount of physical memory in the system with the specified size, adhering to the specified comparison operator. In containers compares the amount of memory assigned to the container instead. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly ConditionMemory?: number | string | readonly (number | string)[];
@@ -280,7 +281,7 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly ConditionNeedsUpdate?: string | readonly string[];
   /** Verify that a specific key=value pair is set in the host's os-release5. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly ConditionOSRelease?: string | readonly string[];
-  /** Check for the existence of a file. If the specified absolute path name does not exist, the condition will fail. If the absolute path name passed to ConditionPathExists= is prefixed with an exclamation mark (!), the test is negated, and the unit is only started if the path does not exist. Source: systemd v260.1, `systemd.unit(5)`. */
+  /** Checks for any file system object at an absolute path, including directories, device nodes, FIFOs, and sockets. Symbolic links are followed, so broken symbolic links do not count as existing. Prefix the path with `!` to require its absence. Source: systemd v262, `systemd.unit(5)`. */
   readonly ConditionPathExists?: string | readonly string[];
   /** Similar to `ConditionPathExists=`, but checks for the existence of at least one file or directory matching the specified globbing pattern. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly ConditionPathExistsGlob?: string | readonly string[];
@@ -362,7 +363,7 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly StartLimitAction?: UnitActionDirectiveValue;
   /** See systemd.unit(5) for StartLimitBurst=. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly StartLimitBurst?: number;
-  /** Configure unit start rate limiting. Units which are started more than burst times within an interval time span are not permitted to start any more. Use StartLimitIntervalSec= to configure the checking interval and StartLimitBurst= to configure how many starts per interval are allowed. Source: systemd v260.1, `systemd.unit(5)`. */
+  /** Configure unit start rate limiting. Units which are started more than burst times within an interval time span are not permitted to start any more. Use StartLimitIntervalSec= to configure the checking interval and StartLimitBurst= to configure how many starts per interval are allowed. Since systemd v262, time spent suspended counts toward the interval. Sources: systemd v262, `systemd.unit(5)` and `NEWS`. */
   readonly StartLimitIntervalSec?: number | string;
   /** Units whose stop requests should also stop this unit. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly StopPropagatedFrom?: string | readonly string[];
@@ -452,7 +453,7 @@ export interface SystemdTimerSection extends CustomDirectiveSection {
  *
  * This interface includes directives from `systemd.service(5)`,
  * `systemd.exec(5)`, `systemd.kill(5)`, and
- * `systemd.resource-control(5)` as of systemd v260.1.
+ * `systemd.resource-control(5)`, reviewed through systemd v262.
  */
 export interface SystemdServiceSection extends CustomDirectiveSection {
   /** This setting controls the cpuset controller in the unified hierarchy. Source: systemd v260.1, `systemd.resource-control(5)`. */
@@ -683,6 +684,8 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly LogsDirectoryMode?: string;
   /** Storage quota for directories created by `LogsDirectory=`. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly LogsDirectoryQuota?: number | string;
+  /** Creates named Live Update Orchestrator (LUO) sessions and passes their file descriptors through the service's file descriptor store. Takes whitespace-separated names; repeated assignments are combined, and an empty string resets the list. Implies `FileDescriptorStoreMax=` is at least the number of sessions. Use `FileDescriptorStorePreserve=true` to preserve them across kexec. Existing sessions with the same name are reused. If `/dev/liveupdate` is unavailable, the service starts normally without sessions. Only supported by the system service manager. Source: systemd v262, `systemd.service(5)`. */
+  readonly LUOSession?: string | readonly string[];
   /** See systemd.service(5) for ManagedOOMMemoryPressure=. Source: systemd v260.1, `systemd.service(5)`. */
   readonly ManagedOOMMemoryPressure?: ManagedOOMDirectiveValue;
   /** Overrides the default memory pressure duration set by oomd.conf5 for the cgroup of this unit. The specified value supports a time unit such as ms or μs, see systemd.time(7) for details on the permitted syntax. Must be set to either empty or a value of at least 1s. Defaults to empty, which means to use the default set by oomd.conf5. This property is ignored unless ManagedOOMMemoryPressure=kill. Source: systemd v260.1, `systemd.resource-control(5)`. */
@@ -731,7 +734,7 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly NFTSet?: string | readonly string[];
   /** Controls the NUMA node list which will be applied alongside with selected NUMA policy. Takes a list of NUMA nodes and has the same syntax as a list of CPUs for CPUAffinity= option or special "all" value which will include all available NUMA nodes in the mask. Note that the list of NUMA nodes is not required for default and local policies and for preferred policy we expect a single NUMA node. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly NUMAMask?: string | readonly string[];
-  /** Controls the NUMA memory policy of the executed processes. Takes a policy type, one of: default, preferred, bind, interleave and local. A list of NUMA nodes that should be associated with the policy must be specified in NUMAMask=. For more details on each policy please see, set_mempolicy(2). For overall overview of NUMA support in Linux see, numa(7). Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Controls the NUMA memory policy: `default`, `preferred`, `bind`, `interleave`, `local`, `preferred-many` (Linux 5.15 or newer), or `weighted-interleave` (Linux 6.9 or newer). Configure associated nodes with `NUMAMask=` and weighted-interleave weights through `/sys/kernel/mm/mempolicy/weighted_interleave/`. Unsupported kernel policies log a warning and are ignored. Source: systemd v262, `systemd.exec(5)`. */
   readonly NUMAPolicy?: string | readonly string[];
   /** Takes an absolute file system path referring to a Linux network namespace pseudo-file (i.e. a file like /proc/$PID/ns/net or a bind mount or symlink to one). When set the invoked processes are added to the network namespace referenced by that path. The path has to point to a valid namespace file at the moment the processes are forked off. If this option is used PrivateNetwork= has no effect. If this option is used together with JoinsNamespaceOf= then it only has an effect if this unit is started before any of the listed units that have PrivateNetwork= or NetworkNamespacePath= configured, as otherwise the network namespace of those units is reused. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly NetworkNamespacePath?: string;
@@ -803,7 +806,7 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly ReadWritePaths?: string | readonly string[];
   /** Supports either booleans or a space-separated list of refreshable resource kinds such as `extensions` and `credentials`. Source: systemd v260.1, `systemd.service(5)`. */
   readonly RefreshOnReload?: boolean | string;
-  /** Configures the UNIX process signal to send to the service's main process when asked to reload the service's configuration. Defaults to SIGHUP. This option has no effect unless Type=notify-reload is used, see above. Source: systemd v260.1, `systemd.service(5)`. */
+  /** Selects the signal sent to the main process to reload a `Type=notify-reload` service. Defaults to SIGHUP and has no effect for other service types. The main process must catch or block this signal before its initial `READY=1` notification, or startup fails. The handler is checked again before reloading; a missing handler then causes a warning, but the signal is still sent. Source: systemd v262, `systemd.service(5)`. */
   readonly ReloadSignal?: NodeJS.Signals | number;
   /** Takes a boolean value that specifies whether the service shall be considered active even when all its processes exited. Defaults to no. Source: systemd v260.1, `systemd.service(5)`. */
   readonly RemainAfterExit?: boolean;
@@ -821,6 +824,8 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly RestartMode?: ServiceRestartModeDirectiveValue;
   /** Takes a list of exit status definitions that, when returned by the main service process, will prevent automatic service restarts, regardless of the restart setting configured with Restart=. Exit status definitions can be numeric termination statuses, termination status names, or termination signal names, separated by spaces. Defaults to the empty list, so that, by default, no exit status is excluded from the configured restart logic. A service with the RestartPreventExitStatus= setting RestartPreventExitStatus=TEMPFAIL 250 SIGKILL Exit status 75 (TEMPFAIL), 250, and the termination signal SIGKILL will not result in automatic service restarting. This option may appear more than once, in which case the list of restart-preventing statuses is merged. If the empty string is assigned to this option, the list is reset and all prior assignments of this option will have no effect. Source: systemd v260.1, `systemd.service(5)`. */
   readonly RestartPreventExitStatus?: string | number | readonly (string | number)[];
+  /** Adds a uniformly distributed random delay between zero and this duration to automatic restarts, on top of `RestartSec=` and any exponential backoff configured by `RestartSteps=`/`RestartMaxDelaySec=`. Accepts seconds or a time span string. Defaults to 0, disabling the extra delay. Source: systemd v262, `systemd.service(5)`. */
+  readonly RestartRandomizedDelaySec?: number | string;
   /** Configures the time to sleep before restarting a service (as configured with Restart=). Takes a unit-less value in seconds, or a time span value such as "5min 20s". Defaults to 100ms. Source: systemd v260.1, `systemd.service(5)`. */
   readonly RestartSec?: number | string;
   /** Configures the number of exponential steps to take to increase the interval of auto-restarts from RestartSec= to RestartMaxDelaySec=. Takes a positive integer or 0 to disable it. Defaults to 0. Hint: values between 3 and 5 are good choices when exponential backoff is desired. Source: systemd v260.1, `systemd.service(5)`. */
@@ -869,7 +874,7 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly RuntimeRandomizedExtraSec?: number | string;
   /** Set the SELinux security context of the executed process. If set, this will override the automated domain transition. However, the policy still needs to authorize the transition. This directive is ignored if SELinux is disabled. If prefixed by -, failing to set the SELinux security context will be ignored, but it is still possible that the subsequent execve() may fail if the policy does not allow the transition for the non-overridden context. This does not affect commands prefixed with +. See setexeccon3 for details. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly SELinuxContext?: string;
-  /** Controls the secure bits set for the executed process. Takes a space-separated combination of options from the following list: keep-caps, keep-caps-locked, no-setuid-fixup, no-setuid-fixup-locked, noroot, and noroot-locked. This option may appear more than once, in which case the secure bits are ORed. If the empty string is assigned to this option, the bits are reset to 0. This does not affect commands prefixed with +. See capabilities(7) for details. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Sets a space-separated combination of secure bits: `keep-caps`, `no-setuid-fixup`, `noroot`, `no-cap-ambient-raise`, `exec-restrict-file`, `exec-deny-interactive`, and their `-locked` variants. Repeated assignments combine the bits; an empty string resets them to zero. Commands prefixed with `+` are unaffected. See capabilities(7) and the kernel executability-check documentation. Source: systemd v262, `systemd.exec(5)`. */
   readonly SecureBits?: string | readonly string[];
   /** Specifies whether to send SIGHUP to remaining processes immediately after sending the signal configured with KillSignal=. This is useful to indicate to shells and shell-like programs that their connection has been severed. Takes a boolean value. Defaults to no. Source: systemd v260.1, `systemd.kill(5)`. */
   readonly SendSIGHUP?: boolean;
@@ -997,7 +1002,7 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly UtmpIdentifier?: string;
   /** Takes one of init, login or user. If UtmpIdentifier= is set, controls which type of utmp5/wtmp entries for this service are generated. This setting has no effect unless UtmpIdentifier= is set too. If init is set, only an INIT_PROCESS entry is generated and the invoked process must implement a getty-compatible utmp/wtmp logic. If login is set, first an INIT_PROCESS entry, followed by a LOGIN_PROCESS entry is generated. In this case, the invoked process must implement a login1-compatible utmp/wtmp logic. If user is set, first an INIT_PROCESS entry, then a LOGIN_PROCESS entry and finally a USER_PROCESS entry is generated. In this case, the invoked process may be any process that is suitable to be run as session leader. Defaults to init. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly UtmpMode?: UtmpModeDirectiveValue;
-  /** Configures the mechanism via which the service notifies the manager that the service start-up has finished. One of simple, exec, forking, oneshot, dbus, notify, notify-reload, or idle:. Source: systemd v260.1, `systemd.service(5)`. */
+  /** Configures how the service notifies the manager that startup has finished: `simple`, `exec`, `forking`, `oneshot`, `dbus`, `notify`, `notify-reload`, or `idle`. With `notify-reload`, the main process must catch or block `ReloadSignal=` before sending its initial `READY=1` notification, or startup fails. Source: systemd v262, `systemd.service(5)`. */
   readonly Type?: ServiceTypeDirectiveValue;
   /** Configures the watchdog timeout for a service. The watchdog is activated when the start-up is completed. The service must call sd_notify3 regularly with WATCHDOG=1 (i.e. the "keep-alive ping"). If the time between two such calls is larger than the configured time, then the service is placed in a failed state and it will be terminated with SIGABRT (or the signal specified by WatchdogSignal=). By setting Restart= to on-failure, on-watchdog, on-abnormal or always, the service will be automatically restarted. The time configured here will be passed to the executed service process in the WATCHDOG_USEC= environment variable. This allows daemons to automatically enable the keep-alive pinging logic if watchdog support is enabled for the service. If this option is used, NotifyAccess= (see below) should be set to open access to the notification socket provided by systemd. If NotifyAccess= is not set, it will be implicitly set to main. Defaults to 0, which disables this feature. The service can check whether the service manager expects watchdog keep-alive notifications. See sd_watchdog_enabled3 for details. sd_event_set_watchdog3 may be used to enable automatic watchdog notification support. Source: systemd v260.1, `systemd.service(5)`. */
   readonly WatchdogSec?: number | string;
