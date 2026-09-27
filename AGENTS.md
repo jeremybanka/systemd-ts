@@ -15,3 +15,7 @@
 - While the project is pre-`1.0.0`, breaking changes should be released as minor versions and prefixed with `**Breaking change:**` in their changesets.
 - When writing changesets, if you want to do bullet points, don't. Make each bullet its own changeset instead.
 - When a changeset needs to illustrate a fix, addition, or migration, show it with a code block instead of prose like `For example,`, and use comments in the snippet to label the old way and the new way.
+
+## Vite Plus Upgrades
+
+Use the target release's official `vp migrate --no-interactive` for Vite Plus upgrades. Preserve the old lockfile until migration runs, and let the migrator own toolchain version alignment and supported source/configuration changes. Review its manual migration findings and run the repository's formatter and checks; do not maintain a separate dependency synchronization implementation.
