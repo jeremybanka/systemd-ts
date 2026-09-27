@@ -12,6 +12,7 @@ const config: ReturnType<typeof defineConfig> = defineConfig({
     },
     sourcemap: true,
     dts: {
+      generator: "tsgo",
       tsgo: {
         path: tsgoPath,
       },
@@ -30,11 +31,13 @@ const config: ReturnType<typeof defineConfig> = defineConfig({
     tasks: {
       "test:task": {
         command: `vp test`,
-        input: [
-          { auto: true },
-          { pattern: `!.colima/**`, base: `workspace` },
-          { pattern: `!.docker/**`, base: `workspace` },
-        ],
+        cache: {
+          input: [
+            { auto: true },
+            { pattern: `!.colima/**`, base: `workspace` },
+            { pattern: `!.docker/**`, base: `workspace` },
+          ],
+        },
       },
     },
   },
