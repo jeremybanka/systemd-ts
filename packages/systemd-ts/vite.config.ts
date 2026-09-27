@@ -12,12 +12,19 @@ const config: ReturnType<typeof defineConfig> = defineConfig({
     },
     sourcemap: true,
     dts: {
+      generator: "tsgo",
       tsgo: {
         path: tsgoPath,
       },
     },
     exports: true,
-    deps: { onlyBundle: [] },
+    deps: {
+      // tsdown <0.23 compatibility: resolve external dependency subpaths.
+      // Remove to preserve subpath imports as written (the new default).
+      // https://tsdown.dev/options/dependencies#deps-resolvedepsubpath
+      resolveDepSubpath: true,
+      onlyBundle: [],
+    },
   },
   lint: {
     options: {
@@ -30,11 +37,13 @@ const config: ReturnType<typeof defineConfig> = defineConfig({
     tasks: {
       "test:task": {
         command: `vp test`,
-        input: [
-          { auto: true },
-          { pattern: `!.colima/**`, base: `workspace` },
-          { pattern: `!.docker/**`, base: `workspace` },
-        ],
+        cache: {
+          input: [
+            { auto: true },
+            { pattern: `!.colima/**`, base: `workspace` },
+            { pattern: `!.docker/**`, base: `workspace` },
+          ],
+        },
       },
     },
   },
