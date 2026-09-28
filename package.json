@@ -24,7 +24,6 @@
     "test": "vp run -r test",
     "test:warmup": "node ./packages/systemd-ts/__scripts__/warmup-test-host.ts",
     "test:watch": "vp run -r --parallel --no-cache test:watch",
-    "verify": "pnpm run check && pnpm run test && pnpm run build",
     "workflows:update": "node ./scripts/update-workflows.node.ts"
   },
   "devDependencies": {
