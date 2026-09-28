@@ -17,6 +17,7 @@ defaults:
 
 jobs:
   CompatibilityRecord:
+    name: Compatibility Record
     runs-on: ubuntu-latest
     timeout-minutes: 2
     steps:
