@@ -2,6 +2,9 @@ packages:
   - packages/*
   - tools/*
 
+allowBuilds:
+  dprint: true
+
 catalogMode: prefer
 blockExoticSubdeps: true
 minimumReleaseAge: 1440
