@@ -17,7 +17,7 @@
     "manpages:fetch": "node ./compatibility/systemd/fetch-manpages.ts",
     "prepare": "vp config",
     "release:publish": "changeset publish",
-    "release:version": "changeset version",
+    "release:version": "changeset version && pnpm install --no-frozen-lockfile && pnpm run fmt",
     "staged": "vp staged",
     "test": "vp run -r test",
     "test:warmup": "node ./packages/systemd-ts/__scripts__/warmup-test-host.ts",

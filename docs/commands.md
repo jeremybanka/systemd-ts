@@ -34,6 +34,8 @@ Mise installs Node.js, pnpm, and the non-npm test host tools. Use `pnpm install 
 
 `pnpm run staged` formats staged files with dprint and runs Vite Plus lint fixes with formatting disabled.
 
+`pnpm run release:version` runs Changesets versioning, refreshes pnpm's lockfile and installation state, then formats the repository with dprint. Changesets' inline formatting is disabled in `.changeset/config.json` so the formatter runs after pnpm reflects the updated package manifests. The release workflow uses this same command when preparing release PRs.
+
 ## Command notes
 
 Tests require the Docker or Colima host described in the package documentation.
