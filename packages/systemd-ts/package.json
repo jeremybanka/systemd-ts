@@ -23,9 +23,9 @@
   },
   "scripts": {
     "build": "vp pack",
-    "check": "pnpm run check:fmt && pnpm run check:oxlint",
+    "check": "pnpm run check:fmt && pnpm run check:vp",
     "check:fmt": "vp fmt --check",
-    "check:oxlint": "vp check --no-fmt",
+    "check:vp": "vp check --no-fmt",
     "dev": "vp pack --watch",
     "fmt": "vp fmt",
     "prepublishOnly": "vp run build",

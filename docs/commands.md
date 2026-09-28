@@ -20,8 +20,10 @@ Run these commands from the repository root with `pnpm run <command>`. `mise.tom
 
 - `check:deps`: `pin-checker --ignore-catalog`.
 - `check:fmt`: `vp fmt --check`.
-- `check:oxlint`: `vp check --no-fmt`.
+- `check:vp`: `vp check --no-fmt`.
 - `check:spelling`: `cspell lint --config ./cspell.json`.
+
+`check:vp` invokes the configured Vite Plus validation pipeline; `check:fmt` handles formatting separately.
 
 ## Verification
 

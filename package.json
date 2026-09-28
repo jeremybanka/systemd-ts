@@ -14,7 +14,7 @@
     "check": "pnpm run \"/^check:.*/\"",
     "check:deps": "pin-checker --ignore-catalog",
     "check:fmt": "vp fmt --check",
-    "check:oxlint": "vp check --no-fmt",
+    "check:vp": "vp check --no-fmt",
     "check:spelling": "cspell lint --config ./cspell.json",
     "dev": "vp run -r dev",
     "fmt": "vp fmt",
