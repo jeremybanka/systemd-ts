@@ -30,3 +30,7 @@ vp check
 vp run -r test
 vp run -r build
 ```
+
+## Repository commands
+
+See [the command guide](docs/commands.md) for formatting, static checks, tests, coverage where available, and release commands.

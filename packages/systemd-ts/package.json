@@ -23,10 +23,14 @@
   },
   "scripts": {
     "build": "vp pack",
+    "check": "pnpm run check:fmt && pnpm run check:oxlint",
+    "check:fmt": "vp fmt --check",
+    "check:oxlint": "vp check --no-fmt",
     "dev": "vp pack --watch",
+    "fmt": "vp fmt",
+    "prepublishOnly": "vp run build",
     "test": "vp run test:task",
-    "check": "vp check",
-    "prepublishOnly": "vp run build"
+    "test:watch": "vp test watch"
   },
   "devDependencies": {
     "@types/node": "catalog:",
