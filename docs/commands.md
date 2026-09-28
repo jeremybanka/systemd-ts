@@ -29,8 +29,8 @@ Run these commands from the repository root with `pnpm run <command>`. `mise.tom
 
 `pnpm run verify` executes `pnpm run check && pnpm run test && pnpm run build`. CI can run these constituent commands in separate jobs. Check failures must propagate to the caller.
 
-Tests require the Docker or Colima host described in the package documentation. `ready` remains an alias of `verify`.
+Tests require the Docker or Colima host described in the package documentation.
 
 ## Migration
 
-Use `check:fmt` for formatting validation and `check:<tool>` for static checks. Existing non-conflicting aliases remain available, but CI and maintainer documentation use the canonical commands.
+Use `check:fmt` for formatting validation and `check:<tool>` for static checks. Use the canonical commands directly; superseded names have been removed.
