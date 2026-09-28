@@ -4,6 +4,8 @@
 - Example: `✨ add initial systemd-ts package`
 - Treat `mise` as the core toolchain manager for this repo.
 - If a tool does not come from npm, install and manage it with `mise`.
+- Install Vite Plus, dprint, and formatter plugins as pinned npm dependencies. Bootstrap the workspace with `pnpm install --frozen-lockfile`.
+- Route all formatting through dprint, including staged checks, Changesets, and dependency upgrade automation. Keep Markdown prose on one source line per paragraph.
 - Use the `.manpages/` directory as the source of truth when adding or documenting features.
 - `.manpages/` is organized by version to reduce ambiguity and make it easier to extend with new material.
 - Do not check vendored upstream systemd source into git. `.manpages/` stays ignored except for intentional placeholders like `.gitkeep`.
@@ -19,3 +21,7 @@
 ## Vite Plus Upgrades
 
 Use the target release's official `vp migrate --no-interactive` for Vite Plus upgrades. Preserve the old lockfile until migration runs, and let the migrator own toolchain version alignment and supported source/configuration changes. Review its manual migration findings and run the repository's formatter and checks; do not maintain a separate dependency synchronization implementation.
+
+## Repository commands
+
+Use the canonical command names in `docs/commands.md`: `fmt` writes formatting, `check` aggregates `check:*` validators, and `test` runs once. Coverage commands use the `cov` prefix where implemented. Keep CI and documentation references aligned when changing commands.

@@ -1,10 +1,8 @@
 # systemd-ts
 
-A TypeScript-first toolkit for creating and managing `systemd` services and
-timers from application code.
+A TypeScript-first toolkit for creating and managing `systemd` services and timers from application code.
 
-Usage instructions and examples live in
-[`packages/systemd-ts/`](./packages/systemd-ts).
+Usage instructions and examples live in [`packages/systemd-ts/`](./packages/systemd-ts).
 
 ## Workspace
 
@@ -12,8 +10,10 @@ Usage instructions and examples live in
 
 ## Toolchain
 
-- `mise` manages `node`, `pnpm`, and `viteplus`
-- `vp` drives install, format, lint, typecheck, test, and build
+- `mise` manages Node.js, pnpm, and the Docker/Colima tools.
+- `pnpm install` installs the pinned npm toolchain, including Vite Plus and dprint.
+- `vp` runs linting, typechecking, tests, builds, and staged checks.
+- `dprint` formats TypeScript, JSON, Markdown, TOML, and YAML through npm-installed plugins.
 
 ## Upstream Tracking
 
@@ -25,8 +25,13 @@ Usage instructions and examples live in
 ## Commands
 
 ```bash
-vp install
-vp check
-vp run -r test
-vp run -r build
+pnpm install --frozen-lockfile
+pnpm run fmt
+pnpm run check
+pnpm run test
+pnpm run build
 ```
+
+## Repository commands
+
+See [the command guide](docs/commands.md) for formatting, static checks, tests, coverage where available, and release commands.

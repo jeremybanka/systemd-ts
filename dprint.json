@@ -1,0 +1,55 @@
+{
+  "$schema": "https://dprint.dev/schemas/v0.json",
+  "lineWidth": 100,
+  "indentWidth": 2,
+  "useTabs": false,
+  "includes": [
+    "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts,json,jsonc,md,mdx,toml,yml,yaml}"
+  ],
+  "excludes": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/.colima/**",
+    "**/.docker/**",
+    "**/.manpages/**",
+    "**/.pnpm-store/**",
+    "**/.turbo/**",
+    "**/pnpm-lock.yaml"
+  ],
+  "oxc": {
+    "associations": [
+      "**/*.{ts,tsx,js,jsx,mjs,cjs,mts,cts}"
+    ],
+    "semicolons": "always",
+    "trailingCommas": "all"
+  },
+  "json": {
+    "associations": [
+      "**/*.{json,jsonc}"
+    ]
+  },
+  "markdown": {
+    "associations": [
+      "**/*.{md,mdx}"
+    ],
+    "textWrap": "never"
+  },
+  "toml": {
+    "associations": [
+      "**/*.toml"
+    ]
+  },
+  "yaml": {
+    "associations": [
+      "**/*.{yml,yaml}"
+    ]
+  },
+  "plugins": [
+    "./node_modules/@dprint/oxc/plugin.wasm",
+    "./node_modules/@dprint/json/plugin.wasm",
+    "./node_modules/@dprint/markdown/plugin.wasm",
+    "./node_modules/@dprint/toml/plugin.wasm",
+    "./node_modules/dprint-plugin-yaml/plugin.wasm"
+  ]
+}

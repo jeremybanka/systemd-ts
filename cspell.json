@@ -1,7 +1,14 @@
 {
   "version": "0.2",
   "language": "en",
-  "files": ["**/*.md", "**/*.json", "**/*.yml", "**/*.yaml", "**/*.ts", "**/*.mts"],
+  "files": [
+    "**/*.md",
+    "**/*.json",
+    "**/*.yml",
+    "**/*.yaml",
+    "**/*.ts",
+    "**/*.mts"
+  ],
   "ignorePaths": [
     ".git",
     ".colima",
@@ -42,6 +49,7 @@
     "deinstalled",
     "deprioritizing",
     "Disallocate",
+    "dprint",
     "emerg",
     "EUCLEAN",
     "executability",
@@ -102,7 +110,7 @@
     "openat",
     "osxsave",
     "overlayfs",
-    "oxfmt",
+    "oxc",
     "parisc",
     "pathlib",
     "pclmul",
@@ -165,7 +173,6 @@
     "uucp",
     "virt",
     "vite",
-    "viteplus",
     "vitest",
     "voidzero",
     "wallclock",

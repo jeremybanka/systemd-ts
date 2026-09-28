@@ -62,7 +62,7 @@
       "postUpgradeTasks": {
         "commands": [
           "{{#if (includes (lookupArray upgrades 'depName') 'vite-plus')}}pnpm dlx --package=vite-plus@{{#each upgrades}}{{#if (equals depName 'vite-plus')}}{{{newVersion}}}{{/if}}{{/each}} vp migrate --no-interactive{{else}}pnpm install --no-frozen-lockfile --ignore-scripts{{/if}}",
-          "pnpm exec vp fmt"
+          "pnpm run fmt"
         ],
         "executionMode": "branch",
         "fileFilters": ["**/*"],

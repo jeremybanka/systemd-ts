@@ -4,9 +4,7 @@
 
 ### Major Changes
 
-- c860409: Add systemd v262 compatibility with `RestartRandomizedDelaySec=` and `LUOSession=`
-  service directives. The major release follows the package's upstream systemd
-  version alignment.
+- c860409: Add systemd v262 compatibility with `RestartRandomizedDelaySec=` and `LUOSession=` service directives. The major release follows the package's upstream systemd version alignment.
 
   ```ts
   import { SystemdService } from "systemd-ts";
@@ -25,10 +23,7 @@
   });
   ```
 
-  Refresh documentation for NUMA policies, secure bits, CPU feature conditions,
-  machine tags, and path-existence conditions. On systemd v262, `Type=notify-reload`
-  services must catch or block their configured reload signal before sending
-  `READY=1`, or startup fails. Start-limit intervals now include time spent suspended.
+  Refresh documentation for NUMA policies, secure bits, CPU feature conditions, machine tags, and path-existence conditions. On systemd v262, `Type=notify-reload` services must catch or block their configured reload signal before sending `READY=1`, or startup fails. Start-limit intervals now include time spent suspended.
 
 ## 261.3.0
 
@@ -83,8 +78,7 @@
 
 ### Patch Changes
 
-- 905d4e8: Export reusable sandbox harness plumbing from `systemd-ts/test`, including
-  `sandboxSystemd()`, `isolatedSandboxSystemd()`, and guest command executors.
+- 905d4e8: Export reusable sandbox harness plumbing from `systemd-ts/test`, including `sandboxSystemd()`, `isolatedSandboxSystemd()`, and guest command executors.
 
 ## 0.3.0
 

@@ -12,26 +12,18 @@ It is designed around a few practical jobs:
 
 The library has two layers:
 
-- `systemd.ts.*` is the code-owned upkeep layer for attaching, reattaching, and
-  detaching application-managed units.
-- `systemd.*` stays close to raw `systemd` concepts like materializing units and
-  starting them directly.
+- `systemd.ts.*` is the code-owned upkeep layer for attaching, reattaching, and detaching application-managed units.
+- `systemd.*` stays close to raw `systemd` concepts like materializing units and starting them directly.
 
-That lets the README start from the application code story without giving up a
-lower-level `systemd` surface when you want it.
+That lets the README start from the application code story without giving up a lower-level `systemd` surface when you want it.
 
-It is also a good place to learn `systemd` itself. The unit directives are
-deeply typed, documented in the TypeScript surface, and maintained against
-versioned upstream manpage material, so the library doubles as a guided way to
-explore what `systemd` can do without starting from loose strings and scattered
-shell examples.
+It is also a good place to learn `systemd` itself. The unit directives are deeply typed, documented in the TypeScript surface, and maintained against versioned upstream manpage material, so the library doubles as a guided way to explore what `systemd` can do without starting from loose strings and scattered shell examples.
 
 ## What It Can Do
 
 ### Keep application-owned units up to date
 
-If your application owns a service or timer and wants to keep that unit set up
-to date across reinstalls, updates, or reconfiguration, use `systemd.ts`.
+If your application owns a service or timer and wants to keep that unit set up to date across reinstalls, updates, or reconfiguration, use `systemd.ts`.
 
 ```ts
 import { homedir } from "node:os";
@@ -77,10 +69,7 @@ if (!attached.ok) {
 }
 ```
 
-This is the highest-level upkeep workflow in the library. It is designed for
-desktop apps, self-updating agents, OTA-managed software, and other code-owned
-service setups where the application itself is responsible for the unit set it
-maintains.
+This is the highest-level upkeep workflow in the library. It is designed for desktop apps, self-updating agents, OTA-managed software, and other code-owned service setups where the application itself is responsible for the unit set it maintains.
 
 ### Use `systemctl` from TypeScript
 
@@ -105,9 +94,7 @@ console.log(timers.value);
 console.log(status.value);
 ```
 
-This is a good fit when you already know the units you want to inspect or
-control and you want to stay inside TypeScript instead of shelling out from app
-code by hand.
+This is a good fit when you already know the units you want to inspect or control and you want to stay inside TypeScript instead of shelling out from app code by hand.
 
 ### Define a service from TypeScript
 
@@ -130,8 +117,7 @@ const service = new SystemdService({
 });
 ```
 
-That service can be rendered into a real unit file, materialized into a unit
-directory, and then managed through `Systemd` or `Systemctl`.
+That service can be rendered into a real unit file, materialized into a unit directory, and then managed through `Systemd` or `Systemctl`.
 
 ### Define a service that runs on a timer
 
@@ -164,13 +150,11 @@ const timer = new SystemdTimer({
 });
 ```
 
-This gives you a real `.service` plus a real `.timer`, both defined from the
-same TypeScript module.
+This gives you a real `.service` plus a real `.timer`, both defined from the same TypeScript module.
 
 ### Keep the executable close to the unit definitions
 
-For many projects, the nicest workflow is to colocate the job entrypoint with
-the service and timer that run it.
+For many projects, the nicest workflow is to colocate the job entrypoint with the service and timer that run it.
 
 `defineExecutable()` is designed for that pattern:
 
@@ -208,8 +192,7 @@ const timer = new SystemdTimer({
 });
 ```
 
-That keeps the scheduled code, the service definition, and the timer definition
-near each other instead of scattering them across shell scripts and unit files.
+That keeps the scheduled code, the service definition, and the timer definition near each other instead of scattering them across shell scripts and unit files.
 
 ## A Typical Flow
 
@@ -266,8 +249,7 @@ if (!reattached.ok) {
 
 ### Using The `Systemd` API Directly
 
-If you want to stay closer to raw `systemd` operations, use the lower-level
-`Systemd` methods directly:
+If you want to stay closer to raw `systemd` operations, use the lower-level `Systemd` methods directly:
 
 ```ts
 import { homedir } from "node:os";
@@ -318,18 +300,13 @@ if (!started.ok) {
 }
 ```
 
-This lower-level flow is useful when you want exact control over
-materialization, enablement, or startup behavior without going through the
-code-owned upkeep layer.
+This lower-level flow is useful when you want exact control over materialization, enablement, or startup behavior without going through the code-owned upkeep layer.
 
 ## Testing Against A Real User Manager
 
-The package also ships a `systemd-ts/test` module for integration tests that
-need a real `systemd --user` environment.
+The package also ships a `systemd-ts/test` module for integration tests that need a real `systemd --user` environment.
 
-Use `ensureTestHost()` to warm the test host, `createTestSandbox()` to create
-an isolated unit directory, and `sandboxSystemd()` when you want a `Systemd`
-instance already pointed at that sandbox.
+Use `ensureTestHost()` to warm the test host, `createTestSandbox()` to create an isolated unit directory, and `sandboxSystemd()` when you want a `Systemd` instance already pointed at that sandbox.
 
 ```ts
 import { afterEach, beforeAll, beforeEach, test } from "vitest";
@@ -379,16 +356,13 @@ test(`starts a service in a sandbox`, async () => {
 });
 ```
 
-If you need direct executor access for helpers outside `Systemd`, the same
-module also exports `guestCommandExecutor`, `isolatedGuestCommandExecutor`, and
-`createGuestCommandExecutor()`.
+If you need direct executor access for helpers outside `Systemd`, the same module also exports `guestCommandExecutor`, `isolatedGuestCommandExecutor`, and `createGuestCommandExecutor()`.
 
 ## Explore Further
 
 The README is meant to answer what the library is for.
 
-If you want the exact method surface, result types, or lower-level details, the
-next places to look are:
+If you want the exact method surface, result types, or lower-level details, the next places to look are:
 
 - `Systemctl` for direct `systemctl` usage from TypeScript
 - `Systemd` for materialization plus unit lifecycle workflows

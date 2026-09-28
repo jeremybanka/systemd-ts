@@ -26,7 +26,6 @@ const config: ReturnType<typeof defineConfig> = defineConfig({
       typeCheck: true,
     },
   },
-  fmt: {},
   run: {
     tasks: {
       "test:task": {

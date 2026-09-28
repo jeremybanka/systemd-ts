@@ -2,6 +2,9 @@ packages:
   - packages/*
   - tools/*
 
+allowBuilds:
+  dprint: true
+
 catalogMode: prefer
 blockExoticSubdeps: true
 minimumReleaseAge: 1440
@@ -20,16 +23,22 @@ minimumReleaseAgeExclude:
 
 catalog:
   "@changesets/cli": 3.0.2
+  "@dprint/json": 0.24.0
+  "@dprint/markdown": 0.24.0
+  "@dprint/oxc": 0.41.0
+  "@dprint/toml": 0.8.0
   "@types/node": 26.6.3
   "@typescript/native-preview": 7.0.0-dev.20260707.2
   cspell: 10.3.4
+  dprint-plugin-yaml: 0.6.0
+  dprint: 0.57.4
   pin-dependencies-checker: 2.7.1
+  takua: 0.2.3
   tar: 7.5.22
   typescript: 7.0.2
+  vite-plus: 1.0.0-rc.1
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0-rc.1
   vitest: 5.0.1
-  vite-plus: 1.0.0-rc.1
-  takua: 0.2.3
 
 overrides:
   vite@*: "catalog:"

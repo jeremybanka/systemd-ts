@@ -1,4 +1,5 @@
 [env]
+_.path = ["{{config_root}}/node_modules/.bin"]
 COLIMA_HOME = "{{config_root}}/.colima"
 COLIMA_PROFILE = "systemd-ts"
 LIMA_HOME = "{{config_root}}/.colima/_lima"
@@ -10,4 +11,3 @@ lima = "2.2.0"
 ni = "30.6.0"
 node = "26.10.0"
 pnpm = "12.6.0"
-viteplus = "1.0.0-rc.1"

@@ -34,4 +34,5 @@ jobs:
         id: changesets
         with:
           github-token: ${{ steps.app-token.outputs.token }}
-          publish-script: pnpm release
+          publish-script: pnpm release:publish
+          version-script: pnpm release:version
