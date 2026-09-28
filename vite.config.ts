@@ -2,9 +2,8 @@ import { defineConfig } from "vite-plus";
 
 export default defineConfig({
   staged: {
-    "*": "vp check --fix",
+    "*": ["dprint fmt --allow-no-files", "vp check --no-fmt --fix"],
   },
-  fmt: {},
   lint: {
     options: {
       typeAware: true,

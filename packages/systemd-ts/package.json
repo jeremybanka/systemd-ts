@@ -2,32 +2,29 @@
   "name": "systemd-ts",
   "version": "262.0.0",
   "description": "TypeScript builders and helpers for systemd services and timers.",
-  "license": "LGPL-2.1-or-later",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jeremybanka/systemd-ts.git",
     "directory": "packages/systemd-ts"
   },
-  "files": [
-    "dist",
-    "src"
-  ],
+  "license": "LGPL-2.1-or-later",
   "type": "module",
   "exports": {
     ".": "./dist/index.mjs",
     "./test": "./dist/test.mjs",
     "./package.json": "./package.json"
   },
-  "publishConfig": {
-    "access": "public"
-  },
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
     "build": "vp pack",
     "check": "pnpm run check:fmt && pnpm run check:vp",
-    "check:fmt": "vp fmt --check",
+    "check:fmt": "dprint check .",
     "check:vp": "vp check --no-fmt",
     "dev": "vp pack --watch",
-    "fmt": "vp fmt",
+    "fmt": "dprint fmt .",
     "prepublishOnly": "vp run build",
     "test": "vp run test:task",
     "test:watch": "vp test watch"
@@ -38,5 +35,8 @@
     "takua": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

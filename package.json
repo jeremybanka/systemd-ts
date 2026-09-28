@@ -3,24 +3,22 @@
   "version": "0.0.0",
   "private": true,
   "license": "LGPL-2.1-or-later",
-  "workspaces": [
-    "packages/*"
-  ],
   "type": "module",
   "scripts": {
     "build": "vp run -r build",
     "change": "changeset",
     "check": "pnpm run \"/^check:.*/\"",
     "check:deps": "pin-checker --ignore-catalog",
-    "check:fmt": "vp fmt --check",
-    "check:vp": "vp check --no-fmt",
+    "check:fmt": "dprint check",
     "check:spelling": "cspell lint --config ./cspell.json",
+    "check:vp": "vp check --no-fmt",
     "dev": "vp run -r dev",
-    "fmt": "vp fmt",
+    "fmt": "dprint fmt",
     "manpages:fetch": "node ./compatibility/systemd/fetch-manpages.ts",
     "prepare": "vp config",
     "release:publish": "changeset publish",
     "release:version": "changeset version",
+    "staged": "vp staged",
     "test": "vp run -r test",
     "test:warmup": "node ./packages/systemd-ts/__scripts__/warmup-test-host.ts",
     "test:watch": "vp run -r --parallel --no-cache test:watch",
@@ -28,16 +26,22 @@
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",
+    "@dprint/json": "catalog:",
+    "@dprint/markdown": "catalog:",
+    "@dprint/oxc": "catalog:",
+    "@dprint/toml": "catalog:",
     "@types/node": "catalog:",
     "@typescript/native-preview": "catalog:",
     "cspell": "catalog:",
+    "dprint": "catalog:",
+    "dprint-plugin-yaml": "catalog:",
     "pin-dependencies-checker": "catalog:",
     "tar": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:"
   },
+  "packageManager": "pnpm@12.6.0",
   "engines": {
     "node": "26.10.0"
-  },
-  "packageManager": "pnpm@12.6.0"
+  }
 }

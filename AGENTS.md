@@ -4,6 +4,8 @@
 - Example: `✨ add initial systemd-ts package`
 - Treat `mise` as the core toolchain manager for this repo.
 - If a tool does not come from npm, install and manage it with `mise`.
+- Install Vite Plus, dprint, and formatter plugins as pinned npm dependencies. Bootstrap the workspace with `pnpm install --frozen-lockfile`.
+- Route all formatting through dprint, including staged checks, Changesets, and dependency upgrade automation. Keep Markdown prose on one source line per paragraph.
 - Use the `.manpages/` directory as the source of truth when adding or documenting features.
 - `.manpages/` is organized by version to reduce ambiguity and make it easier to extend with new material.
 - Do not check vendored upstream systemd source into git. `.manpages/` stays ignored except for intentional placeholders like `.gitkeep`.

@@ -10,4 +10,4 @@ runs:
 
     - name: Install Dependencies
       shell: bash
-      run: vp install --frozen-lockfile
+      run: pnpm install --frozen-lockfile

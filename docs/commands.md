@@ -20,11 +20,19 @@ Following the [mise Node.js cookbook](https://mise.jdx.dev/mise-cookbook/nodejs.
 ## Static checks
 
 - `check:deps`: `pin-checker --ignore-catalog`.
-- `check:fmt`: `vp fmt --check`.
+- `check:fmt`: `dprint check`.
 - `check:vp`: `vp check --no-fmt`.
 - `check:spelling`: `cspell lint --config ./cspell.json`.
 
-`check:vp` invokes the configured Vite Plus validation pipeline; `check:fmt` handles formatting separately.
+`check:vp` runs linting and TypeScript typechecking with `lint.options.typeAware` and `lint.options.typeCheck` enabled. `check:fmt` validates formatting through dprint.
+
+## Tool ownership and formatting
+
+Mise installs Node.js, pnpm, and the non-npm test host tools. Use `pnpm install --frozen-lockfile` to bootstrap npm dependencies; Vite Plus and dprint come from the workspace lockfile. `pnpm-workspace.yaml` defines the workspace packages and shared dependency versions.
+
+`fmt`, `check:fmt`, staged formatting, Changesets, and Renovate all use the root `dprint.json` policy. It covers TypeScript and JavaScript sources, JSON, Markdown, TOML, and YAML, including workflow files and upstream compatibility records. Generated output, dependency trees, test host state, cached manpages, and the generated pnpm lockfile are excluded. Markdown prose remains on a single source line per paragraph. Package `fmt` and `check:fmt` commands restrict the same policy to that package.
+
+`pnpm run staged` formats staged files with dprint and runs Vite Plus lint fixes with formatting disabled.
 
 ## Command notes
 
