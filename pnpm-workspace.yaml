@@ -29,7 +29,7 @@ catalog:
   "@dprint/toml": 0.8.0
   "@types/node": 26.6.3
   "@typescript/native-preview": 7.0.0-dev.20260707.2
-  cspell: 10.3.4
+  cspell: 10.3.5
   dprint-plugin-yaml: 0.6.0
   dprint: 0.57.4
   pin-dependencies-checker: 2.7.1
