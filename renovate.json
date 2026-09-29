@@ -85,11 +85,6 @@
       "enabled": false
     },
     {
-      "matchPackageNames": ["vite-plus"],
-      "ignoreUnstable": false,
-      "respectLatest": false
-    },
-    {
       "groupName": "changesets",
       "matchPackageNames": ["@changesets/cli", "changesets/action"]
     },
