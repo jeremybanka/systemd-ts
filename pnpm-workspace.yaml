@@ -23,7 +23,7 @@ minimumReleaseAgeExclude:
 
 catalog:
   "@changesets/cli": 3.0.3
-  "@dprint/json": 0.25.0
+  "@dprint/json": 0.25.1
   "@dprint/markdown": 0.24.0
   "@dprint/oxc": 0.42.0
   "@dprint/toml": 0.8.0
