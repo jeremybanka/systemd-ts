@@ -26,7 +26,7 @@ catalog:
   "@dprint/json": 0.25.2
   "@dprint/markdown": 0.26.0
   "@dprint/oxc": 0.43.0
-  "@dprint/toml": 0.8.0
+  "@dprint/toml": 0.9.0
   "@types/node": 26.6.4
   "@typescript/native-preview": 7.0.0-dev.20260707.2
   cspell: 10.3.6
