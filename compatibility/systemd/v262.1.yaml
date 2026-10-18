@@ -1,0 +1,14 @@
+version: v262.1
+status: compatible
+reviewedAt: 2026-10-17
+notes: >-
+  Reviewed cached v262.1 manpages, NEWS, and README against v262. No directive syntax
+  or type changes are required. Updated execution and resource-limit documentation:
+  commands prefixed with + bypass Limit*= settings and their configured defaults,
+  inheriting the service manager's resource limits instead. RestrictRealtime= blocks
+  sched_setattr() entirely, including non-realtime uses. Unit, timer, resource-control,
+  kill, sd_notify, systemd-notify, systemctl, and journalctl manpages are unchanged.
+  Changes to boot tooling, portablectl, sysupdate, sd-bus, generators, reporting,
+  namespace resources, and experimental notices do not affect the existing API.
+  Compatibility is based on upstream source review and local static, unit, and build
+  checks; live integration tests could not run because no Docker daemon is available.

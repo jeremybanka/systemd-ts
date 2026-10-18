@@ -126,6 +126,7 @@ export type StandardOutputDirectiveValue =
   | `truncate:${string}`
   | `fd:${string}`;
 export type StandardErrorDirectiveValue = StandardOutputDirectiveValue | "inherit";
+/** Command lines for `Exec*=` directives. A `+` executable prefix bypasses per-command privilege restrictions and `Limit*=` settings, including manager-configured defaults; the command inherits the service manager's resource limits. Controls applying to the whole cgroup still apply. Source: systemd v262.1, `systemd.service(5)`. */
 export type ExecDirective = string | Executable | readonly (string | Executable)[];
 export type UnitValue = string | number | boolean | Executable;
 export type UnitValueList = readonly UnitValue[];
@@ -139,7 +140,7 @@ export interface CustomDirectiveSection {
  * Generic unit-level directives shared by service and timer units.
  *
  * References in this file are grounded in cached upstream systemd manpages,
- * reviewed through v262. Individual directives identify their documentation source.
+ * reviewed through v262.1. Individual directives identify their documentation source.
  *
  * Sources:
  * - systemd v262, `systemd.unit(5)`
@@ -453,7 +454,7 @@ export interface SystemdTimerSection extends CustomDirectiveSection {
  *
  * This interface includes directives from `systemd.service(5)`,
  * `systemd.exec(5)`, `systemd.kill(5)`, and
- * `systemd.resource-control(5)`, reviewed through systemd v262.
+ * `systemd.resource-control(5)`, reviewed through systemd v262.1.
  */
 export interface SystemdServiceSection extends CustomDirectiveSection {
   /** This setting controls the cpuset controller in the unified hierarchy. Source: systemd v260.1, `systemd.resource-control(5)`. */
@@ -626,37 +627,37 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly KillMode?: "control-group" | "mixed" | "process" | "none";
   /** Specifies which signal to use when stopping a service. This controls the signal that is sent as first step of shutting down a unit (see above), and is usually followed by SIGKILL (see above and below). For a list of valid signals, see signal(7). Defaults to SIGTERM. Source: systemd v260.1, `systemd.kill(5)`. */
   readonly KillSignal?: NodeJS.Signals | number;
-  /** Maximum address-space size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum address-space size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitAS?: ProcessResourceLimitDirectiveValue;
-  /** Maximum core-file size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum core-file size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitCORE?: ProcessResourceLimitDirectiveValue;
-  /** Maximum CPU time for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum CPU time for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitCPU?: ProcessResourceLimitDirectiveValue;
-  /** Maximum data-segment size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum data-segment size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitDATA?: ProcessResourceLimitDirectiveValue;
-  /** Maximum created-file size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum created-file size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitFSIZE?: ProcessResourceLimitDirectiveValue;
-  /** Maximum number of file locks for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum number of file locks for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitLOCKS?: ProcessResourceLimitDirectiveValue;
-  /** Maximum locked-in-memory size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum locked-in-memory size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitMEMLOCK?: ProcessResourceLimitDirectiveValue;
-  /** Maximum POSIX message-queue size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum POSIX message-queue size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitMSGQUEUE?: ProcessResourceLimitDirectiveValue;
-  /** Maximum nice-priority adjustment for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum nice-priority adjustment for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitNICE?: ProcessResourceLimitDirectiveValue;
-  /** Maximum number of open file descriptors for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum number of open file descriptors for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitNOFILE?: ProcessResourceLimitDirectiveValue;
-  /** Maximum number of processes or threads for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum number of processes or threads for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitNPROC?: ProcessResourceLimitDirectiveValue;
-  /** Maximum resident-set size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum resident-set size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitRSS?: ProcessResourceLimitDirectiveValue;
-  /** Maximum real-time scheduling priority for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum real-time scheduling priority for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitRTPRIO?: ProcessResourceLimitDirectiveValue;
-  /** Maximum real-time CPU time for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum real-time CPU time for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitRTTIME?: ProcessResourceLimitDirectiveValue;
-  /** Maximum number of queued signals for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum number of queued signals for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitSIGPENDING?: ProcessResourceLimitDirectiveValue;
-  /** Maximum stack size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** Maximum stack size for processes started by the unit. Accepts the usual `soft:hard` syntax, `infinity`, and unit suffixes where systemd allows them. Commands prefixed with `+` bypass this setting and its configured default, inheriting the service manager's resource limits instead. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly LimitSTACK?: ProcessResourceLimitDirectiveValue;
   /** Pass a credential to the unit. Credentials are limited-size binary or textual objects that may be passed to unit processes. They are primarily intended for passing cryptographic keys (both public and private) or certificates, user account information or identity information from host to services, but can be freely used to pass any kind of limited-size information to a service. The data is accessible from the unit's processes via the file system, at a read-only location that (if possible and permitted) is backed by non-swappable memory. The data is only accessible to the user associated with the unit, via the User=/DynamicUser= settings (as well as the superuser). When available, the location of credentials is exported as the $CREDENTIALS_DIRECTORY environment variable to the unit's processes. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly LoadCredential?: string | readonly string[];
@@ -838,7 +839,7 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly RestrictNamespaces?: boolean | string | readonly string[];
   /** Takes a list of space-separated network interface names. This option restricts the network interfaces that processes of this unit can use. By default, processes can only use the network interfaces listed (allow-list). If the first character of the rule is ~, the effect is inverted: the processes can only use network interfaces not listed (deny-list). Source: systemd v260.1, `systemd.resource-control(5)`. */
   readonly RestrictNetworkInterfaces?: string | readonly string[];
-  /** If set, any attempts to enable realtime scheduling in a process of the unit are refused. This restricts access to realtime task scheduling policies such as SCHED_FIFO, SCHED_RR or SCHED_DEADLINE. See sched7 for details about these scheduling policies. Realtime scheduling policies may be used to monopolize CPU time for longer periods of time, and may hence be used to lock up or otherwise trigger Denial-of-Service situations on the system. It is hence recommended to restrict access to realtime scheduling to the few programs that actually require them. Defaults to off. Source: systemd v260.1, `systemd.exec(5)`. */
+  /** If set, any attempts to enable realtime scheduling in a process of the unit are refused. This restricts access to realtime task scheduling policies such as SCHED_FIFO, SCHED_RR or SCHED_DEADLINE. See sched7 for details about these scheduling policies. Realtime scheduling policies may be used to monopolize CPU time for longer periods of time, and may hence be used to lock up or otherwise trigger Denial-of-Service situations on the system. It is hence recommended to restrict access to realtime scheduling to the few programs that actually require them. The system call filter cannot inspect the scheduling policy passed to `sched_setattr()`, so that call is blocked entirely, including for non-realtime uses. Defaults to off. Source: systemd v262.1, `systemd.exec(5)`. */
   readonly RestrictRealtime?: boolean;
   /** If set, any attempts to set the set-user-ID (SUID) or set-group-ID (SGID) bits on files or directories will be denied (for details on these bits see inode7). As the SUID/SGID bits are mechanisms to elevate privileges, and allow users to acquire the identity of other users, it is recommended to restrict creation of SUID/SGID files to the few programs that actually require them. Note that this restricts marking of any type of file system object with these bits, including both regular files and directories (where the SGID is a different meaning than for files, see documentation). This option is implied if DynamicUser= is enabled. Seccomp blocks calls with directly supplied mode bits only when SUID or SGID is requested, but blocks calls such as openat2() entirely because their mode bits cannot be inspected. Source: systemd v261.3, `systemd.exec(5)`. */
   readonly RestrictSUIDSGID?: boolean;
