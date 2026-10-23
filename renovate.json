@@ -93,7 +93,13 @@
       "dependencyDashboardApproval": true
     },
     {
-      "matchPackageNames": ["@typescript/*"],
+      "description": "Exempt consumed jeremybanka packages at every version; keep aligned with pnpm-workspace.yaml",
+      "matchDatasources": [
+        "npm"
+      ],
+      "matchPackageNames": [
+        "takua"
+      ],
       "minimumReleaseAge": null
     }
   ]

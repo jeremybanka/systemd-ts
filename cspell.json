@@ -65,6 +65,7 @@
     "hugepage",
     "Hugepages",
     "ioprio",
+    "jeremybanka",
     "journalctl",
     "kallsyms",
     "kcore",
