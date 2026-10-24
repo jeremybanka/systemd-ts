@@ -12,6 +12,16 @@ minimumReleaseAgeExclude:
   # Consumed jeremybanka packages are exempt at every version.
   # Keep aligned with the npm rule in renovate.json.
   - takua
+  - vite-plus
+  - "@voidzero-dev/*"
+  - oxlint
+  - "@oxlint/*"
+  - oxlint-tsgolint
+  - "@oxlint-tsgolint/*"
+  - oxfmt
+  - "@oxfmt/*"
+  - vitest
+  - "@vitest/*"
 
 catalog:
   "@changesets/cli": 3.0.3
@@ -28,8 +38,8 @@ catalog:
   takua: 0.2.3
   tar: 7.5.22
   typescript: 7.0.2
-  vite-plus: 1.3.0
-  vite: npm:@voidzero-dev/vite-plus-core@1.3.0
+  vite-plus: 1.4.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
 
 overrides:
   vite@*: "catalog:"
