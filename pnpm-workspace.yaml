@@ -38,8 +38,8 @@ catalog:
   takua: 0.2.3
   tar: 7.5.22
   typescript: 7.0.2
-  vite-plus: 1.4.0
-  vite: npm:@voidzero-dev/vite-plus-core@1.4.0
+  vite-plus: 1.5.0
+  vite: npm:@voidzero-dev/vite-plus-core@1.5.0
 
 overrides:
   vite@*: "catalog:"
