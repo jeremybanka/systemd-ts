@@ -140,7 +140,7 @@ export interface CustomDirectiveSection {
  * Generic unit-level directives shared by service and timer units.
  *
  * References in this file are grounded in cached upstream systemd manpages,
- * reviewed through v262.1. Individual directives identify their documentation source.
+ * reviewed through v262.2. Individual directives identify their documentation source.
  *
  * Sources:
  * - systemd v262, `systemd.unit(5)`
@@ -362,7 +362,7 @@ export interface SystemdUnitSection extends CustomDirectiveSection {
   readonly SourcePath?: string;
   /** Configure an additional action to take if the rate limit configured with StartLimitIntervalSec= and StartLimitBurst= is hit. Takes the same values as the FailureAction=/SuccessAction= settings. If none is set, hitting the rate limit will trigger no action except that the start will not be permitted. Defaults to none. Source: systemd v260.1, `systemd.unit(5)`. */
   readonly StartLimitAction?: UnitActionDirectiveValue;
-  /** See systemd.unit(5) for StartLimitBurst=. Source: systemd v260.1, `systemd.unit(5)`. */
+  /** Maximum number of starts allowed within `StartLimitIntervalSec=`, including automatic restarts. Defaults to the manager's `DefaultStartLimitBurst=`. To stop exponential restarts when the delay reaches `RestartMaxDelaySec=`, set this to `RestartSteps + 1` and make the interval longer than the cumulative restart delays plus all start, run, and stop time. This assumes the restart counter and start rate limit were reset before the first start. Sources: systemd v262.2, `systemd.unit(5)` and `systemd.service(5)`. */
   readonly StartLimitBurst?: number;
   /** Configure unit start rate limiting. Units which are started more than burst times within an interval time span are not permitted to start any more. Use StartLimitIntervalSec= to configure the checking interval and StartLimitBurst= to configure how many starts per interval are allowed. Since systemd v262, time spent suspended counts toward the interval. Sources: systemd v262, `systemd.unit(5)` and `NEWS`. */
   readonly StartLimitIntervalSec?: number | string;
@@ -454,7 +454,7 @@ export interface SystemdTimerSection extends CustomDirectiveSection {
  *
  * This interface includes directives from `systemd.service(5)`,
  * `systemd.exec(5)`, `systemd.kill(5)`, and
- * `systemd.resource-control(5)`, reviewed through systemd v262.1.
+ * `systemd.resource-control(5)`, reviewed through systemd v262.2.
  */
 export interface SystemdServiceSection extends CustomDirectiveSection {
   /** This setting controls the cpuset controller in the unified hierarchy. Source: systemd v260.1, `systemd.resource-control(5)`. */
@@ -819,7 +819,7 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly RestartForceExitStatus?: string | number | readonly (string | number)[];
   /** Specifies which signal to use when restarting a service. The same as KillSignal= described above, with the exception that this setting is used in a restart job. Not set by default, and the value of KillSignal= is used. Source: systemd v260.1, `systemd.kill(5)`. */
   readonly RestartKillSignal?: NodeJS.Signals | number;
-  /** Configures the longest time to sleep before restarting a service as the interval goes up with RestartSteps=. Takes a value in the same format as RestartSec=, or infinity to disable the setting. Defaults to infinity. Source: systemd v260.1, `systemd.service(5)`. */
+  /** Caps the exponential restart delay configured by `RestartSteps=`. Accepts seconds, a time span string, or `infinity` (the default) to disable the cap. Effective only with nonzero `RestartSteps=` and `RestartSec=`. Reaching this delay does not stop restarts; the capped delay repeats until the service stops or the unit start rate limit is hit. Source: systemd v262.2, `systemd.service(5)`. */
   readonly RestartMaxDelaySec?: number | string;
   /** Takes a string value that specifies how a service should restart: If set to normal (the default), the service restarts by going through a failed/inactive state. If set to direct, the service transitions to the activating state directly during auto-restart, skipping failed/inactive state. ExecStopPost= is still invoked. OnSuccess= and OnFailure= are skipped. This option is useful in cases where a dependency can fail temporarily but we do not want these temporary failures to make the dependent units fail. Dependent units are not notified of these temporary failures. If set to debug, the service manager will log messages that are related to this unit at debug level while automated restarts are attempted, until either the service hits the rate limit or it succeeds, and the $DEBUG_INVOCATION=1 environment variable will be set for the unit. This is useful to be able to get additional information when a service fails to start, without needing to proactively or permanently enable debug level logging in systemd, which is very verbose. This is otherwise equivalent to normal mode. Source: systemd v260.1, `systemd.service(5)`. */
   readonly RestartMode?: ServiceRestartModeDirectiveValue;
@@ -829,7 +829,15 @@ export interface SystemdServiceSection extends CustomDirectiveSection {
   readonly RestartRandomizedDelaySec?: number | string;
   /** Configures the time to sleep before restarting a service (as configured with Restart=). Takes a unit-less value in seconds, or a time span value such as "5min 20s". Defaults to 100ms. Source: systemd v260.1, `systemd.service(5)`. */
   readonly RestartSec?: number | string;
-  /** Configures the number of exponential steps to take to increase the interval of auto-restarts from RestartSec= to RestartMaxDelaySec=. Takes a positive integer or 0 to disable it. Defaults to 0. Hint: values between 3 and 5 are good choices when exponential backoff is desired. Source: systemd v260.1, `systemd.service(5)`. */
+  /**
+   * Number of exponential steps from `RestartSec=` to `RestartMaxDelaySec=`. Takes a positive integer or 0 (the default) to disable backoff; 3 to 5 steps are suggested. Effective only with `RestartMaxDelaySec=` set and nonzero `RestartSec=`.
+   *
+   * The ratio between delays is `(RestartMaxDelaySec / RestartSec) ** (1 / RestartSteps)`. The maximum delay is first used for restart `RestartSteps + 1` and repeats thereafter. With `RestartSec=10s`, `RestartSteps=4`, and `RestartMaxDelaySec=160s`, the delays are 10s, 20s, 40s, 80s, 160s, then 160s repeatedly. The cumulative wait through the first maximum delay is 310s, excluding start, run, and stop time and `RestartRandomizedDelaySec=`.
+   *
+   * Restarts are subject to `StartLimitIntervalSec=` and `StartLimitBurst=`; if the interval expires during the sequence, restarts may continue indefinitely. A successful restart does not reset the restart counter. Reset it with `systemctl reset-failed` or send `RESTART_RESET=1` after starting. Use `systemd-analyze restart-delays` to inspect delays, cumulative totals, and start rate limits.
+   *
+   * Source: systemd v262.2, `systemd.service(5)`.
+   */
   readonly RestartSteps?: number;
   /** Restricts the set of socket address families accessible to the processes of this unit. Takes none, or a space-separated list of address family names to allow-list, such as AF_UNIX, AF_INET or AF_INET6, see address_families7 for all possible options. When none is specified, then all address families will be denied. When prefixed with ~ the listed address families will be applied as deny list, otherwise as allow list. Source: systemd v260.1, `systemd.exec(5)`. */
   readonly RestrictAddressFamilies?: string | readonly string[];
