@@ -1,0 +1,16 @@
+version: v262.2
+status: compatible
+reviewedAt: 2026-11-06
+notes: >-
+  Reviewed cached v262.2 manpages, NEWS, and README against v262.1, plus the upstream
+  commit and source diff. No directive syntax or type changes are required. Updated
+  RestartSteps=, RestartMaxDelaySec=, and StartLimitBurst= documentation to explain
+  cumulative backoff, repeated capped delays, restart-counter resets, and the start
+  rate limits needed to stop restarts at the maximum delay. Unit, timer, execution,
+  resource-control, kill, sd_notify, systemd-notify, and journalctl manpages are
+  unchanged. The systemctl manpage only fixes a timestamp reference; upstream reload,
+  transaction, directory serialization, and no-block fixes need no wrapper changes.
+  Changes to boot tooling, coredump metadata, virtual machines, instance metadata,
+  PAM, slices, sysupdate, and udev do not affect the existing API. Compatibility is based on
+  upstream source review and local static, unit, and build checks; live integration
+  tests could not run because no Docker daemon is available.
