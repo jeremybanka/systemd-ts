@@ -32,6 +32,10 @@
   ],
   "packageRules": [
     {
+      "groupName": "dprint",
+      "matchPackageNames": ["dprint", "@dprint/*", "/^dprint-plugin-/"]
+    },
+    {
       "matchPackageNames": ["systemd/systemd"],
       "matchDatasources": ["github-releases"],
       "minimumReleaseAge": null,
