@@ -201,8 +201,8 @@ catalogs:
       specifier: 0.2.3
       version: 0.2.3
     tar:
-      specifier: 7.5.22
-      version: 7.5.22
+      specifier: 7.5.23
+      version: 7.5.23
     typescript:
       specifier: 7.0.2
       version: 7.0.2
@@ -252,7 +252,7 @@ importers:
         version: 2.7.1
       tar:
         specifier: 'catalog:'
-        version: 7.5.22
+        version: 7.5.23
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -1960,8 +1960,8 @@ packages:
   takua@0.2.3:
     resolution: {integrity: sha512-X/UsrLMSttBXrgAthtDZW9iuorphm7dgm5h6AskgpONCtpwd59zo8dN3sPHzi9LkEZ2mfxTVWMqAZpsoeEIt1Q==}
 
-  tar@7.5.22:
-    resolution: {integrity: sha512-MFO/QzvtAOmJbkhOaCTvbGcFN9L9b+JunIsDwaKljSOdcLMea3NJ1k9Usz/rjdfSXTq4dfzfeS7W4p4YOAAHeA==}
+  tar@7.5.23:
+    resolution: {integrity: sha512-lkukzdoGngZHJZXxW4S/E4Fp9ghTDlyZXrQGRNoJ/LXvDKcXUTq2sg5yQe74po7Voea6n/IN09+wE/QvJMiifA==}
     engines: {node: '>=18'}
 
   tinybench@6.2.2:
@@ -3455,7 +3455,7 @@ snapshots:
 
   takua@0.2.3: {}
 
-  tar@7.5.22:
+  tar@7.5.23:
     dependencies:
       '@isaacs/fs-minipass': 4.0.1
       chownr: 3.0.0
