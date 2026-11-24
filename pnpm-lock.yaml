@@ -193,8 +193,8 @@ catalogs:
       specifier: 0.29.0
       version: 0.29.0
     '@dprint/oxc':
-      specifier: 0.51.0
-      version: 0.51.0
+      specifier: 0.52.0
+      version: 0.52.0
     '@dprint/toml':
       specifier: 0.10.0
       version: 0.10.0
@@ -247,7 +247,7 @@ importers:
         version: 0.29.0
       '@dprint/oxc':
         specifier: 'catalog:'
-        version: 0.51.0
+        version: 0.52.0
       '@dprint/toml':
         specifier: 'catalog:'
         version: 0.10.0
@@ -719,8 +719,8 @@ packages:
   '@dprint/markdown@0.29.0':
     resolution: {integrity: sha512-4V6MhdqZrTXFeQAfZWHRf6dKPPlx5JA3iCaT8uu6IbZ9gZpZ1R+NzXysczV2aMT/Uub44tWgljbXgnODs5dqXQ==}
 
-  '@dprint/oxc@0.51.0':
-    resolution: {integrity: sha512-n7d1vLNuMVBi50/IVNAEN1rDwaylYBt5wE/77Nydb7UJCyNPU3Oy5GDpjpNPaCLeKSV6NUCRP8SZajmqeOOSFA==}
+  '@dprint/oxc@0.52.0':
+    resolution: {integrity: sha512-sLQSnX+Vw28wPHWCZOXxBTmw779t4JKqcIRXARgeZ6y1la9VnGJ4+KxnqJIYpaiVKwezPozkOIvbJ9q7+eYmeA==}
 
   '@dprint/toml@0.10.0':
     resolution: {integrity: sha512-SpPR0PucvclZG1TpGuN0RdxLjcM+h56Eibif9G3ptaSYxtmEUdW1iP1Dex1LFo/yB9EPM3WoOZhl4gDHHZfDjA==}
@@ -2147,10 +2147,12 @@ packages:
   yuku-core@0.19.0:
     resolution: {integrity: sha512-kYK9e1XdfirNhkipzW0wmMcSWcVF/CWnuugodfVYRCUwvoBefweL9HzB96OiKEhsx78V5WbUxbJqlizMX869Qg==}
     engines: {node: '>=14.18.0'}
+    deprecated: 'Yuku is now one package with one core. Use "yuku" instead: https://yuku.fyi/javascript/. Existing installs keep working but get no more fixes.'
 
   yuku-parser@0.19.0:
     resolution: {integrity: sha512-XrBh9ZiQK5mJVRxZBAvD6LwRyAYrK3MFtH3+onyuxFL5hFD44EC3QOmIC1FjTj6H2MMwq46/NAI+NZxLZPZgxg==}
     engines: {node: '>=14.18.0'}
+    deprecated: 'Yuku is now one package with one core. Use "yuku" instead: https://yuku.fyi/javascript/. Existing installs keep working but get no more fixes.'
 
 snapshots:
 
@@ -2559,7 +2561,7 @@ snapshots:
 
   '@dprint/markdown@0.29.0': {}
 
-  '@dprint/oxc@0.51.0': {}
+  '@dprint/oxc@0.52.0': {}
 
   '@dprint/toml@0.10.0': {}
 
