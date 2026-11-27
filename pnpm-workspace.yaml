@@ -38,7 +38,7 @@ catalog:
   dprint: 0.65.0
   pin-dependencies-checker: 2.7.1
   takua: 0.2.3
-  tar: 7.5.23
+  tar: 7.5.24
   typescript: 7.0.2
   vite-plus: 1.8.0
   vite: npm:@voidzero-dev/vite-plus-core@8.3.8001
